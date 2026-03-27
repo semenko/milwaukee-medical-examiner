@@ -208,12 +208,12 @@
 
 <!-- Tabs -->
 <div class="tabs">
-    <button class="tab-btn active" data-tab="table-view">Table</button>
-    <button class="tab-btn" data-tab="map-view">Map</button>
+    <button class="tab-btn active" data-tab="map-view">Map</button>
+    <button class="tab-btn" data-tab="table-view">Table</button>
 </div>
 
 <!-- TABLE VIEW -->
-<div id="table-view" class="tab-content active">
+<div id="table-view" class="tab-content">
     <div class="controls">
         <input type="search" id="global-search" placeholder="Search all columns..." aria-label="Search all columns">
         <button id="btn-clear">Clear Filters</button>
@@ -234,7 +234,7 @@
 </div>
 
 <!-- MAP VIEW -->
-<div id="map-view" class="tab-content">
+<div id="map-view" class="tab-content active">
     <div class="map-controls">
         <label for="map-year-start">From:</label>
         <select id="map-year-start"></select>
@@ -245,6 +245,7 @@
             <option value="">All</option>
         </select>
         <button id="btn-map-update">Update Map</button>
+        <button id="btn-my-location">My Location</button>
         <span id="map-count"></span>
     </div>
     <div class="map-controls map-legend">
@@ -298,9 +299,8 @@ const MODE_COLORS = {
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
             this.classList.add('active');
             document.getElementById(this.dataset.tab).classList.add('active');
-            if (this.dataset.tab === 'map-view' && !mapInitialized) {
-                initMap();
-            }
+            if (this.dataset.tab === 'map-view' && !mapInitialized) initMap();
+            if (this.dataset.tab === 'map-view' && leafletMap) leafletMap.invalidateSize();
         });
     });
 
@@ -623,6 +623,27 @@ const MODE_COLORS = {
     }
 
     document.getElementById('btn-map-update').addEventListener('click', updateMap);
+
+    // My Location button
+    const MKE_BOUNDS = { latMin: 42.8, latMax: 43.25, lngMin: -88.15, lngMax: -87.8 };
+
+    // Map is the default tab, so initialize immediately
+    initMap();
+
+    document.getElementById('btn-my-location').addEventListener('click', function() {
+        if (!navigator.geolocation) return;
+        navigator.geolocation.getCurrentPosition(
+            function(pos) {
+                const lat = pos.coords.latitude;
+                const lng = pos.coords.longitude;
+                if (lat >= MKE_BOUNDS.latMin && lat <= MKE_BOUNDS.latMax &&
+                    lng >= MKE_BOUNDS.lngMin && lng <= MKE_BOUNDS.lngMax) {
+                    leafletMap.setView([lat, lng], 14);
+                }
+            },
+            function() { /* user denied or error — do nothing */ }
+        );
+    });
 
 })();
 </script>
