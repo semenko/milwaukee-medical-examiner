@@ -521,6 +521,7 @@ const MODE_COLORS = {
     }
 
     // Initial load: last 2 full years + current year
+    const currentYear = new Date().getFullYear();
     const defaultStartYear = currentYear - 1;
     const defaultEndYear = currentYear;
     const initialFiles = filesForYearRange(defaultStartYear, defaultEndYear);
@@ -786,7 +787,6 @@ const MODE_COLORS = {
     let markerCluster = null;
 
     // Populate year selectors
-    const currentYear = new Date().getFullYear();
     const yearStartSelect = document.getElementById('map-year-start');
     const yearEndSelect = document.getElementById('map-year-end');
     const mapModeSelect = document.getElementById('map-mode');
