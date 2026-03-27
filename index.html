@@ -402,15 +402,62 @@ const MODE_COLORS = {
     const dataInfoEl = document.getElementById('data-info');
     const rowCountEl = document.getElementById('row-count');
 
-    // Tab switching
+    // Hash router: #map, #table, #table?q=search, #trends, #downloads
+    const TAB_HASH = {
+        'map-view': 'map', 'table-view': 'table',
+        'trends-view': 'trends', 'downloads-view': 'downloads',
+    };
+    const HASH_TAB = {};
+    for (const [id, h] of Object.entries(TAB_HASH)) HASH_TAB[h] = id;
+
+    let suppressHashUpdate = false;
+
+    function switchTab(tabId, updateHash = true) {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        const btn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+        if (btn) btn.classList.add('active');
+        document.getElementById(tabId)?.classList.add('active');
+        if (tabId === 'map-view' && !mapInitialized) initMap();
+        if (tabId === 'map-view' && leafletMap) leafletMap.invalidateSize();
+        if (updateHash && !suppressHashUpdate) {
+            const hashName = TAB_HASH[tabId] || 'map';
+            let newHash = '#' + hashName;
+            // Preserve search query for table tab
+            if (tabId === 'table-view') {
+                const q = (document.getElementById('global-search')?.value || '').trim();
+                if (q) newHash += '?q=' + encodeURIComponent(q);
+            }
+            history.replaceState(null, '', newHash);
+        }
+    }
+
+    function applyHash() {
+        const raw = location.hash.replace(/^#/, '');
+        const [hashName, queryStr] = raw.split('?');
+        const tabId = HASH_TAB[hashName || 'map'] || 'map-view';
+
+        suppressHashUpdate = true;
+        switchTab(tabId, false);
+        suppressHashUpdate = false;
+
+        // Apply search query if on table tab
+        if (tabId === 'table-view' && queryStr) {
+            const params = new URLSearchParams(queryStr);
+            const q = params.get('q') || '';
+            const searchEl = document.getElementById('global-search');
+            if (searchEl && q) {
+                searchEl.value = q;
+                searchEl.dispatchEvent(new Event('input'));
+            }
+        }
+    }
+
+    window.addEventListener('hashchange', applyHash);
+
     document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.addEventListener('click', function() {
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            this.classList.add('active');
-            document.getElementById(this.dataset.tab).classList.add('active');
-            if (this.dataset.tab === 'map-view' && !mapInitialized) initMap();
-            if (this.dataset.tab === 'map-view' && leafletMap) leafletMap.invalidateSize();
+            switchTab(this.dataset.tab);
         });
     });
 
@@ -551,11 +598,13 @@ const MODE_COLORS = {
                         v && String(v).toLowerCase().includes(search)
                     );
                 });
+                history.replaceState(null, '', '#table?q=' + encodeURIComponent(val));
             } else {
                 table.removeFilter();
                 table.getHeaderFilters().forEach(f => {
                     table.setHeaderFilterValue(f.field, f.value);
                 });
+                history.replaceState(null, '', '#table');
             }
         }, 300);
     });
@@ -737,8 +786,13 @@ const MODE_COLORS = {
     // My Location button
     const MKE_BOUNDS = { latMin: 42.8, latMax: 43.25, lngMin: -88.15, lngMax: -87.8 };
 
-    // Map is the default tab, so initialize immediately
-    initMap();
+    // Apply hash route (defaults to map if no hash)
+    if (location.hash && location.hash !== '#' && location.hash !== '#map') {
+        applyHash();
+    } else {
+        initMap();
+        if (!location.hash) history.replaceState(null, '', '#map');
+    }
 
     document.getElementById('btn-my-location').addEventListener('click', function() {
         if (!navigator.geolocation) return;
