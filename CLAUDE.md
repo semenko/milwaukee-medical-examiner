@@ -9,11 +9,10 @@ Public dataset and browsable web interface for Milwaukee County Medical Examiner
 ## Commands
 
 ```bash
-# Fetch all data from Power BI API (~70K cases, takes ~30s)
-python3 fetch_cases.py --output-dir data --full
-
-# Geocode new addresses via US Census Bureau (incremental, ~2min first run)
-python3 geocode.py
+# Full pipeline: fetch → geocode → post-process
+python3 fetch_cases.py --output-dir data --full   # Power BI API → CSVs + metadata.json
+python3 geocode.py                                 # Census Bureau → geocache.json
+python3 postprocess.py                             # CSVs → trends.json
 
 # Serve the site locally (then open http://localhost:8000)
 python3 -m http.server
@@ -23,9 +22,11 @@ Dependencies: `pip install requests`
 
 ## Architecture
 
-### Data pipeline (`fetch_cases.py`)
+### Pipeline: fetch → geocode → post-process
 
-Queries two Power BI tables via the public REST API (no auth — anonymous embed):
+Three scripts run in sequence (and in the weekly GitHub Action):
+
+**`fetch_cases.py`** — Queries two Power BI tables via the public REST API (no auth — anonymous embed):
 
 - **Table 1** (`vwPublicDataAccess`): Demographics — CaseNum, DeathDate, Age, Gender, Race, Mode, CauseA, CaseType, etc.
 - **Table 2** (`vwPublicDataAccess (2)`): Address detail — DeathAddr, DeathCity, DeathZip, DeathState
@@ -34,13 +35,13 @@ Both tables are fetched in full (paginated at 30K rows via RestartTokens), dedup
 
 - `data/archive/pre-2020.csv` — all cases before 2020
 - `data/{year}/{month}.csv` — monthly files from 2020 onward
-- `data/metadata.json` — manifest listing all files, row count, timestamps
+- `data/metadata.json` — manifest listing all files, row counts, timestamps
 
 Files are sorted by CaseNum_STR for stable git diffs. Only files with actual content changes are overwritten.
 
-### Geocoding (`geocode.py`)
+**`geocode.py`** — Batch geocodes unique addresses from all CSVs via the US Census Bureau Geocoder API (free, no API key). Results are cached in `data/geocache.json` (address string → `[lat, lng]` or `null` for no match). Runs incrementally — only geocodes addresses not already in the cache. ~96% match rate.
 
-Batch geocodes unique addresses from all CSVs via the US Census Bureau Geocoder API (free, no API key). Results are cached in `data/geocache.json` (address string → `[lat, lng]` or `null` for no match). Runs incrementally — only geocodes addresses not already in the cache. ~96% match rate.
+**`postprocess.py`** — Reads all CSVs and generates derived data files. Currently produces `data/trends.json` (yearly aggregates for the Trends tab charts). Keeps derived-data logic separate from the fragile Power BI API fetch code.
 
 ### Power BI response format
 
@@ -70,7 +71,7 @@ Loads `data/metadata.json` for the file manifest, fetches all CSVs in parallel, 
 
 ### Automation (`.github/workflows/update-data.yml`)
 
-Weekly cron (Sundays 6:00 UTC) + manual `workflow_dispatch`. Runs `fetch_cases.py` then `geocode.py`, commits to `data/` only if content changed.
+Weekly cron (Sundays 6:00 UTC) + manual `workflow_dispatch`. Runs `fetch_cases.py` → `geocode.py` → `postprocess.py`, commits to `data/` only if content changed.
 
 ### API details
 

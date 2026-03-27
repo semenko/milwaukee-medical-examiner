@@ -2,8 +2,8 @@
 """
 Fetch Milwaukee County Medical Examiner case data from the public Power BI dashboard.
 
-Queries the Power BI REST API (anonymous public embed, no auth required) and outputs
-case data split into monthly CSV files with a JSON manifest.
+Queries the Power BI REST API (anonymous public embed, no auth required), merges
+two tables, and writes case data as CSV files split by month/year.
 
 Data source: Milwaukee County Medical Examiner's Office
 Dashboard: https://app.powerbigov.us/view?r=eyJrIjoiYWYyYmI0MmItMTZjMC00NWE4LWEyMzUtODA3NTk3MjQ2MDQxIiwidCI6ImFiMGMwMWY2LTE5ZTUtNGUyOS05ZGFiLTRkMDNmODJiNjQ5NSJ9
@@ -248,7 +248,6 @@ def split_cases_by_period(cases):
         if not dd or dd < ARCHIVE_CUTOFF:
             key = "archive/pre-2020.csv"
         else:
-            # Extract year and month from YYYY-MM-DD
             year = dd[:4]
             month = dd[5:7]
             key = f"{year}/{month}.csv"
@@ -287,77 +286,6 @@ def write_csv_if_changed(filepath, rows, columns):
     return True
 
 
-def parse_age(age_str):
-    """Parse age string like '55 Years' or '3 Months' into fractional years."""
-    if not age_str:
-        return None
-    parts = age_str.split()
-    if len(parts) < 2:
-        return None
-    try:
-        num = int(parts[0])
-    except ValueError:
-        return None
-    unit = parts[1].lower()
-    if unit.startswith("year"):
-        return num
-    if unit.startswith("month"):
-        return num / 12
-    if unit.startswith("day") or unit.startswith("hour"):
-        return 0
-    return None
-
-
-def compute_trends(cases):
-    """Compute yearly aggregate statistics for the trends charts."""
-    yearly = {}
-
-    for row in cases:
-        dd = row.get("DeathDate", "")
-        if not dd or len(dd) < 4:
-            continue
-        year = dd[:4]
-        if year < "2002" or year > "2099":
-            continue
-
-        if year not in yearly:
-            yearly[year] = {
-                "total": 0, "homicide": 0, "suicide": 0, "accident": 0,
-                "natural": 0, "undetermined": 0, "drugs": 0, "guns": 0,
-                "under18": 0, "infant": 0,
-            }
-
-        y = yearly[year]
-        y["total"] += 1
-
-        mode = row.get("Mode", "")
-        if mode == "Homicide":
-            y["homicide"] += 1
-        elif mode == "Suicide":
-            y["suicide"] += 1
-        elif mode == "Accident":
-            y["accident"] += 1
-        elif mode == "Natural":
-            y["natural"] += 1
-        else:
-            y["undetermined"] += 1
-
-        dt = row.get("DeathType", "")
-        if dt == "Drug Related":
-            y["drugs"] += 1
-        if dt == "Gunshot Injury":
-            y["guns"] += 1
-
-        age = parse_age(row.get("Age", ""))
-        if age is not None:
-            if age < 18:
-                y["under18"] += 1
-            if age < 1:
-                y["infant"] += 1
-
-    return yearly
-
-
 def main():
     parser = argparse.ArgumentParser(
         description="Fetch Milwaukee County Medical Examiner case data from Power BI"
@@ -389,7 +317,6 @@ def main():
         if cn not in t1_map:
             t1_map[cn] = r
         else:
-            # Merge: fill in blanks from this row
             existing = t1_map[cn]
             for col in TABLE1_COLUMNS:
                 if not existing.get(col, "") and r.get(col, ""):
@@ -424,14 +351,12 @@ def main():
         if isinstance(dd, (int, float)):
             row["DeathDate"] = convert_death_date(dd)
         elif isinstance(dd, str) and len(dd) > 10:
-            # Truncate ISO datetime strings (e.g., "2002-01-01T15:07:00") to date
             row["DeathDate"] = dd[:10]
 
         merged.append(row)
 
     print(f"  Total merged cases: {len(merged)}", file=sys.stderr)
 
-    # Validation
     if len(merged) < 50000:
         print(f"  WARNING: Only {len(merged)} cases found (expected >50,000)", file=sys.stderr)
 
@@ -459,7 +384,7 @@ def main():
     all_dates = [r["DeathDate"] for r in merged if r.get("DeathDate")]
     newest_date = max(all_dates) if all_dates else ""
 
-    # Row counts per file (for metadata)
+    # Row counts per file
     file_row_counts = {rel_path: len(rows) for rel_path, rows in buckets.items()}
 
     # Write metadata.json
@@ -477,14 +402,6 @@ def main():
         f.write("\n")
     print(f"  metadata.json written", file=sys.stderr)
 
-    # Write trends.json — pre-computed yearly aggregates for chart rendering
-    trends = compute_trends(merged)
-    trends_path = os.path.join(output_dir, "trends.json")
-    with open(trends_path, "w") as f:
-        json.dump(trends, f, separators=(",", ":"))
-        f.write("\n")
-    print(f"  trends.json written", file=sys.stderr)
-
     # Summary
     print(f"\n--- Summary ---", file=sys.stderr)
     print(f"Total cases: {len(merged)}", file=sys.stderr)
@@ -499,7 +416,6 @@ def main():
     for mode, count in sorted(modes.items(), key=lambda x: -x[1]):
         print(f"  {mode}: {count}", file=sys.stderr)
 
-    # Row counts per file
     print(f"\nRows per file:", file=sys.stderr)
     for rel_path in sorted(buckets.keys()):
         print(f"  {rel_path}: {len(buckets[rel_path])}", file=sys.stderr)

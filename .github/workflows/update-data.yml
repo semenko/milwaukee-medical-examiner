@@ -27,6 +27,9 @@ jobs:
       - name: Geocode new addresses
         run: python geocode.py
 
+      - name: Generate derived data
+        run: python postprocess.py
+
       - name: Commit and push if changed
         run: |
           git add data/
