@@ -192,6 +192,27 @@
             flex-wrap: wrap;
         }
         .map-legend span { display: flex; align-items: center; gap: 0.25rem; }
+
+        /* Downloads */
+        .dl-section { margin-bottom: 1.5rem; }
+        .dl-section h3 { font-size: 1rem; margin-bottom: 0.5rem; color: #333; }
+        .dl-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 0.5rem;
+        }
+        .dl-grid a {
+            display: block;
+            padding: 0.5rem 0.75rem;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            color: #2185d0;
+            text-decoration: none;
+            font-size: 0.85rem;
+        }
+        .dl-grid a:hover { background: #f0f7ff; border-color: #2185d0; }
+        .dl-grid a small { display: block; color: #888; font-size: 0.75rem; }
     </style>
 </head>
 <body>
@@ -210,6 +231,7 @@
 <div class="tabs">
     <button class="tab-btn active" data-tab="map-view">Map</button>
     <button class="tab-btn" data-tab="table-view">Table</button>
+    <button class="tab-btn" data-tab="downloads-view">Downloads</button>
 </div>
 
 <!-- TABLE VIEW -->
@@ -245,7 +267,7 @@
             <option value="">All</option>
         </select>
         <button id="btn-map-update">Update Map</button>
-        <button id="btn-my-location">My Location</button>
+        <button id="btn-my-location">Near My Location</button>
         <span id="map-count"></span>
     </div>
     <div class="map-controls map-legend">
@@ -257,6 +279,16 @@
     </div>
     <div id="map-container">
         <div id="map"></div>
+    </div>
+</div>
+
+<!-- DOWNLOADS VIEW -->
+<div id="downloads-view" class="tab-content">
+    <div style="max-width:1400px; margin:0 auto;">
+        <p style="margin-bottom:1rem; color:#666; font-size:0.9rem;">
+            All data files are CSV format with the same column schema. Right-click and "Save link as" to download, or click to view.
+        </p>
+        <div id="downloads-list"></div>
     </div>
 </div>
 
@@ -599,9 +631,9 @@ const MODE_COLORS = {
             const color = MODE_COLORS[row.Mode] || '#9ca3af';
             const icon = L.divIcon({
                 className: '',
-                html: `<div style="width:8px;height:8px;border-radius:50%;background:${color};border:1px solid rgba(0,0,0,0.3);"></div>`,
-                iconSize: [8, 8],
-                iconAnchor: [4, 4],
+                html: `<div style="width:12px;height:12px;border-radius:50%;background:${color};border:1px solid rgba(0,0,0,0.3);"></div>`,
+                iconSize: [12, 12],
+                iconAnchor: [6, 6],
             });
 
             const marker = L.marker(coords, { icon: icon });
@@ -644,6 +676,75 @@ const MODE_COLORS = {
             function() { /* user denied or error — do nothing */ }
         );
     });
+
+    // ==================== DOWNLOADS ====================
+
+    const dlContainer = document.getElementById('downloads-list');
+
+    // Group files by category
+    const archiveFiles = metadata.files.filter(f => f.startsWith('archive/'));
+    const yearFiles = metadata.files.filter(f => !f.startsWith('archive/'));
+
+    // Group year files by year
+    const byYear = {};
+    for (const f of yearFiles) {
+        const year = f.split('/')[0];
+        if (!byYear[year]) byYear[year] = [];
+        byYear[year].push(f);
+    }
+
+    // Count rows per file from loaded data
+    const rowCounts = {};
+    for (const row of allData) {
+        const dd = row.DeathDate || '';
+        let key;
+        if (!dd || dd < '2020-01-01') {
+            key = 'archive/pre-2020.csv';
+        } else {
+            key = dd.slice(0,4) + '/' + dd.slice(5,7) + '.csv';
+        }
+        rowCounts[key] = (rowCounts[key] || 0) + 1;
+    }
+
+    const monthNames = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+    // Render yearly sections (most recent first)
+    const sortedYears = Object.keys(byYear).sort().reverse();
+    for (const year of sortedYears) {
+        const section = document.createElement('div');
+        section.className = 'dl-section';
+        const yearTotal = byYear[year].reduce((sum, f) => sum + (rowCounts[f] || 0), 0);
+        section.innerHTML = `<h3>${year} <small style="font-weight:normal;color:#888;">(${yearTotal.toLocaleString()} cases)</small></h3>`;
+        const grid = document.createElement('div');
+        grid.className = 'dl-grid';
+        for (const f of byYear[year].sort()) {
+            const month = parseInt(f.split('/')[1]);
+            const a = document.createElement('a');
+            a.href = 'data/' + f;
+            a.innerHTML = `${monthNames[month]} ${year}<small>${(rowCounts[f] || 0).toLocaleString()} cases</small>`;
+            grid.appendChild(a);
+        }
+        section.appendChild(grid);
+        dlContainer.appendChild(section);
+    }
+
+    // Archive section
+    if (archiveFiles.length) {
+        const section = document.createElement('div');
+        section.className = 'dl-section';
+        const archTotal = archiveFiles.reduce((sum, f) => sum + (rowCounts[f] || 0), 0);
+        section.innerHTML = `<h3>Archive <small style="font-weight:normal;color:#888;">(${archTotal.toLocaleString()} cases)</small></h3>`;
+        const grid = document.createElement('div');
+        grid.className = 'dl-grid';
+        for (const f of archiveFiles) {
+            const a = document.createElement('a');
+            a.href = 'data/' + f;
+            a.innerHTML = `Pre-2020<small>${(rowCounts[f] || 0).toLocaleString()} cases</small>`;
+            grid.appendChild(a);
+        }
+        section.appendChild(grid);
+        dlContainer.appendChild(section);
+    }
 
 })();
 </script>
