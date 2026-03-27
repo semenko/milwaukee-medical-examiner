@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Milwaukee County Medical Examiner Case Data</title>
+
+    <!-- Tabulator -->
+    <link href="https://unpkg.com/tabulator-tables@6.3.1/dist/css/tabulator_semanticui.min.css" rel="stylesheet">
+    <script src="https://unpkg.com/tabulator-tables@6.3.1/dist/js/tabulator.min.js"></script>
+
+    <!-- Papa Parse -->
+    <script src="https://unpkg.com/papaparse@5.5.2/papaparse.min.js"></script>
+
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            padding: 1rem;
+        }
+        header {
+            max-width: 1400px;
+            margin: 0 auto 1rem;
+        }
+        header h1 {
+            font-size: 1.5rem;
+            margin-bottom: 0.25rem;
+        }
+        header p {
+            color: #666;
+            font-size: 0.9rem;
+            margin-bottom: 0.25rem;
+        }
+        header .meta {
+            font-size: 0.8rem;
+            color: #888;
+        }
+        .controls {
+            max-width: 1400px;
+            margin: 0 auto 0.75rem;
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .controls input[type="search"] {
+            flex: 1;
+            min-width: 200px;
+            padding: 0.5rem 0.75rem;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+        .controls button {
+            padding: 0.5rem 1rem;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: white;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+        .controls button:hover { background: #eee; }
+        .controls button.active { background: #2185d0; color: white; border-color: #2185d0; }
+        .controls .row-count {
+            font-size: 0.85rem;
+            color: #666;
+        }
+        #table-container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        #loading {
+            text-align: center;
+            padding: 3rem;
+            font-size: 1.1rem;
+            color: #666;
+        }
+        #loading .spinner {
+            display: inline-block;
+            width: 24px;
+            height: 24px;
+            border: 3px solid #ddd;
+            border-top-color: #2185d0;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 0.5rem;
+            vertical-align: middle;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        footer {
+            max-width: 1400px;
+            margin: 1rem auto 0;
+            font-size: 0.8rem;
+            color: #888;
+            text-align: center;
+        }
+        footer a { color: #2185d0; text-decoration: none; }
+        footer a:hover { text-decoration: underline; }
+
+        /* Make header filters more compact */
+        .tabulator .tabulator-header .tabulator-col .tabulator-header-filter input {
+            font-size: 0.8rem;
+            padding: 2px 4px;
+        }
+        .tabulator .tabulator-header .tabulator-col .tabulator-header-filter select {
+            font-size: 0.8rem;
+            padding: 2px 4px;
+        }
+        .tabulator { font-size: 0.85rem; }
+        .tabulator .tabulator-header { font-size: 0.8rem; }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>Milwaukee County Medical Examiner Case Data</h1>
+    <p>Public case records from the Milwaukee County Medical Examiner's Office.</p>
+    <div class="meta">
+        <span id="data-info">Loading...</span>
+        &middot;
+        <a href="https://app.powerbigov.us/view?r=eyJrIjoiYWYyYmI0MmItMTZjMC00NWE4LWEyMzUtODA3NTk3MjQ2MDQxIiwidCI6ImFiMGMwMWY2LTE5ZTUtNGUyOS05ZGFiLTRkMDNmODJiNjQ5NSJ9" target="_blank" rel="noopener">Original Power BI Dashboard</a>
+    </div>
+</header>
+
+<div class="controls">
+    <input type="search" id="global-search" placeholder="Search all columns..." aria-label="Search all columns">
+    <button id="btn-clear">Clear Filters</button>
+    <button id="btn-columns">Toggle Columns</button>
+    <button id="btn-download">Download CSV</button>
+    <span class="row-count" id="row-count"></span>
+</div>
+
+<div id="table-container">
+    <div id="loading"><span class="spinner"></span> Loading case data...</div>
+    <div id="case-table"></div>
+</div>
+
+<!-- Column toggle panel (hidden by default) -->
+<div id="column-panel" style="display:none; max-width:1400px; margin:0.5rem auto; padding:0.75rem; background:white; border:1px solid #ccc; border-radius:4px;">
+    <strong style="font-size:0.85rem;">Toggle columns:</strong>
+    <div id="column-checkboxes" style="display:flex; flex-wrap:wrap; gap:0.5rem; margin-top:0.5rem;"></div>
+</div>
+
+<footer>
+    <p>
+        Data source: Milwaukee County Medical Examiner's Office
+        &middot; Updated weekly
+        &middot; <a href="https://github.com/semenko/milwaukee-medical-examiner">GitHub Repository</a>
+        &middot; <a href="data/metadata.json">Data Manifest</a>
+    </p>
+</footer>
+
+<script>
+(async function() {
+    const loadingEl = document.getElementById('loading');
+    const dataInfoEl = document.getElementById('data-info');
+    const rowCountEl = document.getElementById('row-count');
+
+    // 1. Load metadata
+    let metadata;
+    try {
+        const resp = await fetch('data/metadata.json');
+        metadata = await resp.json();
+    } catch (e) {
+        loadingEl.textContent = 'Error loading metadata: ' + e.message;
+        return;
+    }
+
+    const lastFetched = new Date(metadata.last_fetched).toLocaleDateString('en-US', {
+        year: 'numeric', month: 'short', day: 'numeric'
+    });
+    dataInfoEl.textContent = `${metadata.total_rows.toLocaleString()} cases through ${metadata.newest_death_date} · Last updated ${lastFetched}`;
+    loadingEl.innerHTML = `<span class="spinner"></span> Loading ${metadata.total_rows.toLocaleString()} records from ${metadata.files.length} files...`;
+
+    // 2. Fetch all CSV files in parallel
+    const allData = [];
+    const fetchPromises = metadata.files.map(async (file) => {
+        const resp = await fetch('data/' + file);
+        const text = await resp.text();
+        const result = Papa.parse(text, { header: true, skipEmptyLines: true });
+        return result.data;
+    });
+
+    try {
+        const results = await Promise.all(fetchPromises);
+        for (const rows of results) {
+            allData.push(...rows);
+        }
+    } catch (e) {
+        loadingEl.textContent = 'Error loading data: ' + e.message;
+        return;
+    }
+
+    loadingEl.style.display = 'none';
+
+    // 3. Collect unique values for dropdown filters
+    function uniqueVals(field) {
+        const vals = new Set();
+        for (const row of allData) {
+            const v = row[field];
+            if (v) vals.add(v);
+        }
+        return Array.from(vals).sort();
+    }
+
+    const modeValues = uniqueVals('Mode');
+    const genderValues = uniqueVals('Gender');
+    const raceValues = uniqueVals('Race');
+    const deathTypeValues = uniqueVals('DeathType');
+    const caseTypeValues = uniqueVals('CaseType');
+
+    function listFilter(values) {
+        return { values: true, listItemFormatter: (value, title) => title || value };
+    }
+
+    // 4. Define columns
+    const columns = [
+        {
+            title: "Case #", field: "CaseNum_STR", headerFilter: "input",
+            width: 105, frozen: true
+        },
+        {
+            title: "Death Date", field: "DeathDate", headerFilter: "input",
+            sorter: "date", sorterParams: { format: "yyyy-MM-dd" }, width: 110
+        },
+        { title: "Age", field: "Age", headerFilter: "input", width: 90 },
+        {
+            title: "Gender", field: "Gender", width: 90,
+            headerFilter: "list", headerFilterParams: { values: { "": "All", ...Object.fromEntries(genderValues.map(v => [v, v])) } }
+        },
+        {
+            title: "Race", field: "Race", width: 130,
+            headerFilter: "list", headerFilterParams: { values: { "": "All", ...Object.fromEntries(raceValues.map(v => [v, v])) } }
+        },
+        {
+            title: "Mode of Death", field: "Mode", width: 130,
+            headerFilter: "list", headerFilterParams: { values: { "": "All", ...Object.fromEntries(modeValues.map(v => [v, v])) } }
+        },
+        {
+            title: "Cause of Death", field: "CauseA", headerFilter: "input",
+            width: 280, formatter: "textarea"
+        },
+        {
+            title: "Death Type", field: "DeathType", width: 140,
+            headerFilter: "list", headerFilterParams: { values: { "": "All", ...Object.fromEntries(deathTypeValues.map(v => [v, v])) } }
+        },
+        { title: "City", field: "DeathCity", headerFilter: "input", width: 120 },
+        { title: "Zip", field: "DeathZip", headerFilter: "input", width: 80 },
+        // Hidden by default
+        { title: "Case Number", field: "CaseNum", headerFilter: "input", width: 105, visible: false },
+        { title: "Event Date", field: "EventDate", headerFilter: "input", width: 130, visible: false },
+        {
+            title: "Contributing Causes", field: "CauseOther", headerFilter: "input",
+            width: 250, formatter: "textarea", visible: false
+        },
+        { title: "Death SubType", field: "DeathSubType", headerFilter: "input", width: 150, visible: false },
+        {
+            title: "Case Type", field: "CaseType", width: 130, visible: false,
+            headerFilter: "list", headerFilterParams: { values: { "": "All", ...Object.fromEntries(caseTypeValues.map(v => [v, v])) } }
+        },
+        { title: "Address", field: "DeathAddr", headerFilter: "input", width: 220, visible: false },
+        { title: "State", field: "DeathState", headerFilter: "input", width: 60, visible: false },
+        { title: "Full Location", field: "Death Location", headerFilter: "input", width: 300, visible: false },
+    ];
+
+    // 5. Initialize Tabulator
+    const table = new Tabulator("#case-table", {
+        data: allData,
+        columns: columns,
+        layout: "fitDataStretch",
+        pagination: true,
+        paginationSize: 50,
+        paginationSizeSelector: [25, 50, 100, 250],
+        movableColumns: true,
+        resizableColumns: true,
+        initialSort: [{ column: "DeathDate", dir: "desc" }],
+        placeholder: "No matching records found",
+        dataFiltered: function(filters, rows) {
+            rowCountEl.textContent = rows.length.toLocaleString() + ' of ' + allData.length.toLocaleString() + ' cases';
+        },
+        dataLoaded: function(data) {
+            rowCountEl.textContent = data.length.toLocaleString() + ' cases';
+        },
+    });
+
+    // 6. Global search
+    const searchInput = document.getElementById('global-search');
+    let searchTimeout;
+    searchInput.addEventListener('input', function() {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+            const val = this.value.trim();
+            if (val) {
+                table.setFilter(function(data) {
+                    const search = val.toLowerCase();
+                    return Object.values(data).some(v =>
+                        v && String(v).toLowerCase().includes(search)
+                    );
+                });
+            } else {
+                table.removeFilter();
+                // Re-apply header filters
+                table.getHeaderFilters().forEach(f => {
+                    table.setHeaderFilterValue(f.field, f.value);
+                });
+            }
+        }, 300);
+    });
+
+    // 7. Clear filters button
+    document.getElementById('btn-clear').addEventListener('click', function() {
+        searchInput.value = '';
+        table.clearHeaderFilter();
+        table.clearFilter();
+    });
+
+    // 8. Download button - downloads currently filtered data
+    document.getElementById('btn-download').addEventListener('click', function() {
+        table.download("csv", "milwaukee-medical-examiner-cases.csv");
+    });
+
+    // 9. Column toggle panel
+    const columnPanel = document.getElementById('column-panel');
+    const columnCheckboxes = document.getElementById('column-checkboxes');
+    let panelVisible = false;
+
+    document.getElementById('btn-columns').addEventListener('click', function() {
+        panelVisible = !panelVisible;
+        columnPanel.style.display = panelVisible ? 'block' : 'none';
+        this.classList.toggle('active', panelVisible);
+    });
+
+    // Build checkboxes
+    columns.forEach(col => {
+        const label = document.createElement('label');
+        label.style.cssText = 'font-size:0.8rem; cursor:pointer; white-space:nowrap;';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = col.visible !== false;
+        cb.style.marginRight = '3px';
+        cb.addEventListener('change', function() {
+            if (this.checked) {
+                table.showColumn(col.field);
+            } else {
+                table.hideColumn(col.field);
+            }
+        });
+        label.appendChild(cb);
+        label.appendChild(document.createTextNode(col.title));
+        columnCheckboxes.appendChild(label);
+    });
+
+})();
+</script>
+
+</body>
+</html>
