@@ -145,6 +145,8 @@
         }
         .tabulator { font-size: 0.85rem; }
         .tabulator .tabulator-header { font-size: 0.8rem; }
+        .tabulator .tabulator-row { cursor: pointer; }
+        .tabulator .tabulator-row:hover { background: #f0f7ff !important; }
 
         /* Map */
         #map {
@@ -277,12 +279,19 @@
         <button id="btn-clear">Clear Filters</button>
         <button id="btn-columns">Toggle Columns</button>
         <button id="btn-download">Download CSV</button>
+        <label style="font-size:0.8rem;color:#666;cursor:pointer;white-space:nowrap;"><input type="checkbox" id="hide-no-date" checked style="margin-right:3px;">Hide missing dates</label>
         <span class="row-count" id="row-count"></span>
     </div>
 
     <div id="table-container">
         <div id="loading"><span class="spinner"></span> Loading case data...</div>
         <div id="case-table"></div>
+    </div>
+
+    <!-- Row detail popup -->
+    <div id="row-detail" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; z-index:1000;">
+        <div id="row-detail-backdrop" style="position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.4);"></div>
+        <div id="row-detail-content" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:white;border-radius:8px;padding:1.5rem;max-width:600px;width:90%;max-height:80vh;overflow-y:auto;box-shadow:0 4px 20px rgba(0,0,0,0.3);"></div>
     </div>
 
     <div id="column-panel" style="display:none; max-width:1400px; margin:0.5rem auto; padding:0.75rem; background:white; border:1px solid #ccc; border-radius:4px;">
@@ -603,13 +612,17 @@ const MODE_COLORS = {
     tableYearStart.value = defaultStartYear;
     tableYearEnd.value = defaultEndYear;
 
+    const hideNoDateCheckbox = document.getElementById('hide-no-date');
+
     function getTableData() {
         const sy = parseInt(tableYearStart.value);
         const ey = parseInt(tableYearEnd.value);
         const startDate = sy + '-01-01';
         const endDate = ey + '-12-31';
+        const hideMissing = hideNoDateCheckbox.checked;
         return allData.filter(r => {
             const dd = r.DeathDate || '';
+            if (!dd) return !hideMissing;
             return dd >= startDate && dd <= endDate;
         });
     }
@@ -647,6 +660,8 @@ const MODE_COLORS = {
 
         table.replaceData(getTableData());
     }
+
+    hideNoDateCheckbox.addEventListener('change', () => table.replaceData(getTableData()));
 
     tableYearStart.addEventListener('change', updateTableYearRange);
     tableYearEnd.addEventListener('change', updateTableYearRange);
@@ -716,6 +731,52 @@ const MODE_COLORS = {
         label.appendChild(cb);
         label.appendChild(document.createTextNode(col.title));
         columnCheckboxes.appendChild(label);
+    });
+
+    // ==================== ROW DETAIL POPUP ====================
+
+    const detailEl = document.getElementById('row-detail');
+    const detailContent = document.getElementById('row-detail-content');
+    document.getElementById('row-detail-backdrop').addEventListener('click', () => detailEl.style.display = 'none');
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') detailEl.style.display = 'none'; });
+
+    table.on('rowClick', function(e, row) {
+        const d = row.getData();
+        const addr = [d.DeathAddr, d.DeathCity, d.DeathState, d.DeathZip].filter(Boolean).join(', ');
+        const osmUrl = addr ? `https://www.openstreetmap.org/search?query=${encodeURIComponent(addr)}` : '';
+
+        let html = `<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:1rem;">`;
+        html += `<h3 style="font-size:1.1rem;margin:0;">Case ${d.CaseNum_STR || d.CaseNum || ''}</h3>`;
+        html += `<button onclick="document.getElementById('row-detail').style.display='none'" style="border:none;background:none;font-size:1.3rem;cursor:pointer;color:#888;line-height:1;">&times;</button>`;
+        html += `</div>`;
+
+        html += `<table style="width:100%;border-collapse:collapse;font-size:0.85rem;">`;
+        function addRow(label, value) {
+            if (!value) return;
+            html += `<tr><td style="padding:0.35rem 0.75rem 0.35rem 0;font-weight:600;color:#555;white-space:nowrap;vertical-align:top;">${label}</td><td style="padding:0.35rem 0;">${value}</td></tr>`;
+        }
+
+        addRow('Death Date', d.DeathDate || '<em style="color:#aaa;">Not recorded</em>');
+        addRow('Event Date', d.EventDate);
+        addRow('Age', d.Age);
+        addRow('Gender', d.Gender);
+        addRow('Race', d.Race);
+        addRow('Mode of Death', d.Mode);
+        addRow('Cause of Death', d.CauseA);
+        addRow('Contributing Causes', d.CauseOther);
+        addRow('Death Type', d.DeathType);
+        addRow('Death SubType', d.DeathSubType);
+        addRow('Case Type', d.CaseType);
+
+        if (addr) {
+            let addrHtml = addr;
+            if (osmUrl) addrHtml += ` <a href="${osmUrl}" target="_blank" rel="noopener" style="color:#2185d0;font-size:0.8rem;margin-left:0.5rem;">View on map &rarr;</a>`;
+            addRow('Location', addrHtml);
+        }
+
+        html += `</table>`;
+        detailContent.innerHTML = html;
+        detailEl.style.display = 'block';
     });
 
     // ==================== MAP ====================

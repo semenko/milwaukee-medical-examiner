@@ -353,6 +353,12 @@ def main():
         elif isinstance(dd, str) and len(dd) > 10:
             row["DeathDate"] = dd[:10]
 
+        # Sanitize: clear dates before 2000 (ME data starts 2002;
+        # earlier dates like "1926-09-06" are data entry errors)
+        dd = row.get("DeathDate", "")
+        if dd and dd < "2000":
+            row["DeathDate"] = ""
+
         merged.append(row)
 
     print(f"  Total merged cases: {len(merged)}", file=sys.stderr)
