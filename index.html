@@ -12,6 +12,9 @@
     <!-- Papa Parse -->
     <script src="https://unpkg.com/papaparse@5.5.2/papaparse.min.js"></script>
 
+    <!-- Chart.js -->
+    <script src="https://unpkg.com/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+
     <!-- Leaflet -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -213,6 +216,34 @@
         }
         .dl-grid a:hover { background: #f0f7ff; border-color: #2185d0; }
         .dl-grid a small { display: block; color: #888; font-size: 0.75rem; }
+
+        /* Trends */
+        .trends-grid {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+        @media (max-width: 900px) { .trends-grid { grid-template-columns: 1fr; } }
+        .chart-card {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            padding: 1rem 1.25rem;
+        }
+        .chart-card.full-width { grid-column: 1 / -1; }
+        .chart-card h3 {
+            font-size: 0.95rem;
+            margin-bottom: 0.15rem;
+            color: #333;
+        }
+        .chart-card p {
+            font-size: 0.78rem;
+            color: #888;
+            margin-bottom: 0.75rem;
+        }
+        .chart-card canvas { width: 100% !important; }
     </style>
 </head>
 <body>
@@ -231,6 +262,7 @@
 <div class="tabs">
     <button class="tab-btn active" data-tab="map-view">Map</button>
     <button class="tab-btn" data-tab="table-view">Table</button>
+    <button class="tab-btn" data-tab="trends-view">Trends</button>
     <button class="tab-btn" data-tab="downloads-view">Downloads</button>
 </div>
 
@@ -279,6 +311,52 @@
     </div>
     <div id="map-container">
         <div id="map"></div>
+    </div>
+</div>
+
+<!-- TRENDS VIEW -->
+<div id="trends-view" class="tab-content">
+    <div class="trends-grid">
+        <div class="chart-card full-width">
+            <h3>Total Deaths per Year</h3>
+            <p>All cases investigated by the Milwaukee County Medical Examiner</p>
+            <canvas id="chart-total"></canvas>
+        </div>
+        <div class="chart-card">
+            <h3>Homicides</h3>
+            <p>Deaths ruled as homicide per year</p>
+            <canvas id="chart-homicide"></canvas>
+        </div>
+        <div class="chart-card">
+            <h3>Suicides</h3>
+            <p>Deaths ruled as suicide per year</p>
+            <canvas id="chart-suicide"></canvas>
+        </div>
+        <div class="chart-card">
+            <h3>Drug-Related Deaths</h3>
+            <p>Including opioids, mixed drug toxicity, and other drug-related causes</p>
+            <canvas id="chart-drugs"></canvas>
+        </div>
+        <div class="chart-card">
+            <h3>Gunshot Deaths</h3>
+            <p>All deaths involving gunshot injuries</p>
+            <canvas id="chart-guns"></canvas>
+        </div>
+        <div class="chart-card">
+            <h3>Deaths Under Age 18</h3>
+            <p>Pediatric and adolescent deaths</p>
+            <canvas id="chart-under18"></canvas>
+        </div>
+        <div class="chart-card">
+            <h3>Infant Deaths (Under 1 Year)</h3>
+            <p>Deaths of children under 12 months of age</p>
+            <canvas id="chart-infant"></canvas>
+        </div>
+        <div class="chart-card full-width">
+            <h3>Deaths by Mode</h3>
+            <p>Annual breakdown by manner of death determination</p>
+            <canvas id="chart-modes"></canvas>
+        </div>
     </div>
 </div>
 
@@ -675,6 +753,143 @@ const MODE_COLORS = {
             },
             function() { /* user denied or error — do nothing */ }
         );
+    });
+
+    // ==================== TRENDS ====================
+
+    function parseAge(ageStr) {
+        if (!ageStr) return null;
+        const parts = ageStr.split(' ');
+        if (parts.length < 2) return null;
+        const num = parseInt(parts[0]);
+        if (isNaN(num)) return null;
+        const unit = parts[1].toLowerCase();
+        if (unit.startsWith('year')) return num;
+        if (unit.startsWith('month')) return num / 12;
+        if (unit.startsWith('day') || unit.startsWith('hour')) return 0;
+        return null;
+    }
+
+    // Aggregate data by year (skip partial current year and pre-2002 outliers)
+    const minYear = 2002;
+    const maxChartYear = currentYear - 1; // exclude current partial year
+    const yearLabels = [];
+    for (let y = minYear; y <= maxChartYear; y++) yearLabels.push(String(y));
+
+    const counts = {};
+    for (const y of yearLabels) {
+        counts[y] = { total: 0, homicide: 0, suicide: 0, accident: 0, natural: 0, undetermined: 0,
+                       drugs: 0, guns: 0, under18: 0, infant: 0 };
+    }
+
+    for (const row of allData) {
+        const dd = row.DeathDate || '';
+        if (dd.length < 4) continue;
+        const y = dd.slice(0, 4);
+        if (!counts[y]) continue;
+
+        counts[y].total++;
+
+        const mode = row.Mode || '';
+        if (mode === 'Homicide') counts[y].homicide++;
+        else if (mode === 'Suicide') counts[y].suicide++;
+        else if (mode === 'Accident') counts[y].accident++;
+        else if (mode === 'Natural') counts[y].natural++;
+        else counts[y].undetermined++;
+
+        const dt = row.DeathType || '';
+        if (dt === 'Drug Related') counts[y].drugs++;
+        if (dt === 'Gunshot Injury') counts[y].guns++;
+
+        const age = parseAge(row.Age);
+        if (age !== null) {
+            if (age < 18) counts[y].under18++;
+            if (age < 1) counts[y].infant++;
+        }
+    }
+
+    function series(key) { return yearLabels.map(y => counts[y][key]); }
+
+    const chartDefaults = {
+        responsive: true,
+        maintainAspectRatio: true,
+        aspectRatio: 2.2,
+        plugins: { legend: { display: false } },
+        scales: {
+            x: { grid: { display: false } },
+            y: { beginAtZero: true, grid: { color: '#eee' } },
+        },
+    };
+
+    function makeLineChart(canvasId, data, color, fill = true) {
+        new Chart(document.getElementById(canvasId), {
+            type: 'line',
+            data: {
+                labels: yearLabels,
+                datasets: [{
+                    data: data,
+                    borderColor: color,
+                    backgroundColor: fill ? color + '22' : 'transparent',
+                    fill: fill,
+                    tension: 0.3,
+                    pointRadius: 2,
+                    pointHoverRadius: 5,
+                    borderWidth: 2,
+                }]
+            },
+            options: chartDefaults,
+        });
+    }
+
+    // Total deaths - bar chart
+    new Chart(document.getElementById('chart-total'), {
+        type: 'bar',
+        data: {
+            labels: yearLabels,
+            datasets: [{
+                data: series('total'),
+                backgroundColor: '#2185d0',
+                borderRadius: 2,
+            }]
+        },
+        options: { ...chartDefaults, aspectRatio: 3 },
+    });
+
+    // Individual line charts
+    makeLineChart('chart-homicide', series('homicide'), '#ef4444');
+    makeLineChart('chart-suicide', series('suicide'), '#8b5cf6');
+    makeLineChart('chart-drugs', series('drugs'), '#f59e0b');
+    makeLineChart('chart-guns', series('guns'), '#dc2626');
+    makeLineChart('chart-under18', series('under18'), '#0891b2');
+    makeLineChart('chart-infant', series('infant'), '#6366f1');
+
+    // Stacked area - deaths by mode
+    new Chart(document.getElementById('chart-modes'), {
+        type: 'line',
+        data: {
+            labels: yearLabels,
+            datasets: [
+                { label: 'Homicide', data: series('homicide'), borderColor: '#ef4444', backgroundColor: '#ef444444', fill: true, tension: 0.3, pointRadius: 0, borderWidth: 1.5, order: 1 },
+                { label: 'Suicide', data: series('suicide'), borderColor: '#8b5cf6', backgroundColor: '#8b5cf644', fill: true, tension: 0.3, pointRadius: 0, borderWidth: 1.5, order: 2 },
+                { label: 'Accident', data: series('accident'), borderColor: '#f59e0b', backgroundColor: '#f59e0b44', fill: true, tension: 0.3, pointRadius: 0, borderWidth: 1.5, order: 3 },
+                { label: 'Natural', data: series('natural'), borderColor: '#6b7280', backgroundColor: '#6b728044', fill: true, tension: 0.3, pointRadius: 0, borderWidth: 1.5, order: 4 },
+            ]
+        },
+        options: {
+            ...chartDefaults,
+            aspectRatio: 3,
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top',
+                    labels: { boxWidth: 12, padding: 15, font: { size: 11 } }
+                }
+            },
+            scales: {
+                x: { grid: { display: false }, stacked: true },
+                y: { beginAtZero: true, grid: { color: '#eee' }, stacked: true },
+            },
+        },
     });
 
     // ==================== DOWNLOADS ====================
