@@ -2,7 +2,7 @@
 
 Searchable, filterable public case records from the [Milwaukee County Medical Examiner's Office](https://county.milwaukee.gov/EN/Medical-Examiner).
 
-**[Browse the data](https://semenko.github.io/milwaukee-medical-examiner/)**
+**[Browse the data](https://nick.semenkovich.com/milwaukee-medical-examiner/)**
 
 ## About
 
