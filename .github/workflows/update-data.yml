@@ -24,6 +24,9 @@ jobs:
       - name: Fetch latest data
         run: python fetch_cases.py --output-dir data --full
 
+      - name: Geocode new addresses
+        run: python geocode.py
+
       - name: Commit and push if changed
         run: |
           git add data/
