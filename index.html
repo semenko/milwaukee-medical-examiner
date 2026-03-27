@@ -269,6 +269,10 @@
 <!-- TABLE VIEW -->
 <div id="table-view" class="tab-content">
     <div class="controls">
+        <label for="table-year-start" style="font-size:0.85rem;color:#666;">From:</label>
+        <select id="table-year-start" style="padding:0.4rem 0.5rem;border:1px solid #ccc;border-radius:4px;font-size:0.85rem;"></select>
+        <label for="table-year-end" style="font-size:0.85rem;color:#666;">To:</label>
+        <select id="table-year-end" style="padding:0.4rem 0.5rem;border:1px solid #ccc;border-radius:4px;font-size:0.85rem;"></select>
         <input type="search" id="global-search" placeholder="Search all columns..." aria-label="Search all columns">
         <button id="btn-clear">Clear Filters</button>
         <button id="btn-columns">Toggle Columns</button>
@@ -461,11 +465,14 @@ const MODE_COLORS = {
         });
     });
 
-    // 1. Load metadata
-    let metadata;
+    // 1. Load metadata and trends in parallel
+    let metadata, trendsData;
     try {
-        const resp = await fetch('data/metadata.json');
-        metadata = await resp.json();
+        const [metaResp, trendsResp] = await Promise.all([
+            fetch('data/metadata.json'), fetch('data/trends.json')
+        ]);
+        metadata = await metaResp.json();
+        trendsData = await trendsResp.json();
     } catch (e) {
         loadingEl.textContent = 'Error loading metadata: ' + e.message;
         return;
@@ -475,22 +482,44 @@ const MODE_COLORS = {
         year: 'numeric', month: 'short', day: 'numeric'
     });
     dataInfoEl.textContent = `${metadata.total_rows.toLocaleString()} cases through ${metadata.newest_death_date} \u00b7 Last updated ${lastFetched}`;
-    loadingEl.innerHTML = `<span class="spinner"></span> Loading ${metadata.total_rows.toLocaleString()} records from ${metadata.files.length} files...`;
 
-    // 2. Fetch all CSV files in parallel
-    const allData = [];
-    const fetchPromises = metadata.files.map(async (file) => {
-        const resp = await fetch('data/' + file);
-        const text = await resp.text();
-        const result = Papa.parse(text, { header: true, skipEmptyLines: true });
-        return result.data;
-    });
+    // 2. Lazy CSV loading — only fetch files for the requested year range
+    const allData = [];           // currently loaded rows
+    const loadedFiles = new Set(); // which CSV files have been fetched
+
+    async function fetchCSVFiles(files) {
+        const toFetch = files.filter(f => !loadedFiles.has(f));
+        if (toFetch.length === 0) return;
+
+        const results = await Promise.all(toFetch.map(async (file) => {
+            const resp = await fetch('data/' + file);
+            const text = await resp.text();
+            return { file, data: Papa.parse(text, { header: true, skipEmptyLines: true }).data };
+        }));
+
+        for (const { file, data } of results) {
+            allData.push(...data);
+            loadedFiles.add(file);
+        }
+    }
+
+    function filesForYearRange(startYear, endYear) {
+        return metadata.files.filter(f => {
+            if (f.startsWith('archive/')) return startYear < 2020;
+            const fileYear = parseInt(f.split('/')[0]);
+            return fileYear >= startYear && fileYear <= endYear;
+        });
+    }
+
+    // Initial load: last 2 full years + current year
+    const defaultStartYear = currentYear - 1;
+    const defaultEndYear = currentYear;
+    const initialFiles = filesForYearRange(defaultStartYear, defaultEndYear);
+
+    loadingEl.innerHTML = `<span class="spinner"></span> Loading recent cases (${initialFiles.length} files)...`;
 
     try {
-        const results = await Promise.all(fetchPromises);
-        for (const rows of results) {
-            allData.push(...rows);
-        }
+        await fetchCSVFiles(initialFiles);
     } catch (e) {
         loadingEl.textContent = 'Error loading data: ' + e.message;
         return;
@@ -564,9 +593,30 @@ const MODE_COLORS = {
         { title: "Full Location", field: "Death Location", headerFilter: "input", width: 300, visible: false },
     ];
 
-    // 5. Initialize Tabulator
+    // 5. Table year range filter
+    const tableYearStart = document.getElementById('table-year-start');
+    const tableYearEnd = document.getElementById('table-year-end');
+    for (let y = currentYear; y >= 2002; y--) {
+        tableYearStart.add(new Option(y, y));
+        tableYearEnd.add(new Option(y, y));
+    }
+    tableYearStart.value = defaultStartYear;
+    tableYearEnd.value = defaultEndYear;
+
+    function getTableData() {
+        const sy = parseInt(tableYearStart.value);
+        const ey = parseInt(tableYearEnd.value);
+        const startDate = sy + '-01-01';
+        const endDate = ey + '-12-31';
+        return allData.filter(r => {
+            const dd = r.DeathDate || '';
+            return dd >= startDate && dd <= endDate;
+        });
+    }
+
+    // 6. Initialize Tabulator
     const table = new Tabulator("#case-table", {
-        data: allData,
+        data: getTableData(),
         columns: columns,
         layout: "fitDataStretch",
         pagination: true,
@@ -577,14 +627,31 @@ const MODE_COLORS = {
         initialSort: [{ column: "DeathDate", dir: "desc" }],
         placeholder: "No matching records found",
         dataFiltered: function(filters, rows) {
-            rowCountEl.textContent = rows.length.toLocaleString() + ' of ' + allData.length.toLocaleString() + ' cases';
+            rowCountEl.textContent = rows.length.toLocaleString() + ' of ' + table.getData().length.toLocaleString() + ' cases';
         },
         dataLoaded: function(data) {
             rowCountEl.textContent = data.length.toLocaleString() + ' cases';
         },
     });
 
-    // 6. Global search
+    async function updateTableYearRange() {
+        const sy = parseInt(tableYearStart.value);
+        const ey = parseInt(tableYearEnd.value);
+        const needed = filesForYearRange(sy, ey);
+        const missing = needed.filter(f => !loadedFiles.has(f));
+
+        if (missing.length > 0) {
+            rowCountEl.textContent = `Loading ${missing.length} file${missing.length > 1 ? 's' : ''}...`;
+            await fetchCSVFiles(missing);
+        }
+
+        table.replaceData(getTableData());
+    }
+
+    tableYearStart.addEventListener('change', updateTableYearRange);
+    tableYearEnd.addEventListener('change', updateTableYearRange);
+
+    // 7. Global search
     const searchInput = document.getElementById('global-search');
     let searchTimeout;
     searchInput.addEventListener('input', function() {
@@ -609,7 +676,7 @@ const MODE_COLORS = {
         }, 300);
     });
 
-    // 7. Clear filters button
+    // 8. Clear filters button
     document.getElementById('btn-clear').addEventListener('click', function() {
         searchInput.value = '';
         table.clearHeaderFilter();
@@ -731,11 +798,20 @@ const MODE_COLORS = {
         ];
     }
 
-    function updateMap() {
+    async function updateMap() {
         if (!leafletMap) return;
 
         const startYear = parseInt(yearStartSelect.value);
         const endYear = parseInt(yearEndSelect.value);
+
+        // Lazy-load CSV files for the selected year range
+        const needed = filesForYearRange(startYear, endYear);
+        const missing = needed.filter(f => !loadedFiles.has(f));
+        if (missing.length > 0) {
+            document.getElementById('map-count').textContent = `Loading ${missing.length} file${missing.length > 1 ? 's' : ''}...`;
+            await fetchCSVFiles(missing);
+        }
+
         const modeFilter = mapModeSelect.value;
         const startDate = startYear + '-01-01';
         const endDate = endYear + '-12-31';
@@ -809,60 +885,16 @@ const MODE_COLORS = {
         );
     });
 
-    // ==================== TRENDS ====================
+    // ==================== TRENDS (from pre-computed trends.json) ====================
 
-    function parseAge(ageStr) {
-        if (!ageStr) return null;
-        const parts = ageStr.split(' ');
-        if (parts.length < 2) return null;
-        const num = parseInt(parts[0]);
-        if (isNaN(num)) return null;
-        const unit = parts[1].toLowerCase();
-        if (unit.startsWith('year')) return num;
-        if (unit.startsWith('month')) return num / 12;
-        if (unit.startsWith('day') || unit.startsWith('hour')) return 0;
-        return null;
-    }
-
-    // Aggregate data by year (skip partial current year and pre-2002 outliers)
     const minYear = 2002;
-    const maxChartYear = currentYear - 1; // exclude current partial year
+    const maxChartYear = currentYear - 1;
     const yearLabels = [];
     for (let y = minYear; y <= maxChartYear; y++) yearLabels.push(String(y));
 
-    const counts = {};
-    for (const y of yearLabels) {
-        counts[y] = { total: 0, homicide: 0, suicide: 0, accident: 0, natural: 0, undetermined: 0,
-                       drugs: 0, guns: 0, under18: 0, infant: 0 };
+    function series(key) {
+        return yearLabels.map(y => (trendsData[y] || {})[key] || 0);
     }
-
-    for (const row of allData) {
-        const dd = row.DeathDate || '';
-        if (dd.length < 4) continue;
-        const y = dd.slice(0, 4);
-        if (!counts[y]) continue;
-
-        counts[y].total++;
-
-        const mode = row.Mode || '';
-        if (mode === 'Homicide') counts[y].homicide++;
-        else if (mode === 'Suicide') counts[y].suicide++;
-        else if (mode === 'Accident') counts[y].accident++;
-        else if (mode === 'Natural') counts[y].natural++;
-        else counts[y].undetermined++;
-
-        const dt = row.DeathType || '';
-        if (dt === 'Drug Related') counts[y].drugs++;
-        if (dt === 'Gunshot Injury') counts[y].guns++;
-
-        const age = parseAge(row.Age);
-        if (age !== null) {
-            if (age < 18) counts[y].under18++;
-            if (age < 1) counts[y].infant++;
-        }
-    }
-
-    function series(key) { return yearLabels.map(y => counts[y][key]); }
 
     const chartDefaults = {
         responsive: true,
@@ -962,18 +994,8 @@ const MODE_COLORS = {
         byYear[year].push(f);
     }
 
-    // Count rows per file from loaded data
-    const rowCounts = {};
-    for (const row of allData) {
-        const dd = row.DeathDate || '';
-        let key;
-        if (!dd || dd < '2020-01-01') {
-            key = 'archive/pre-2020.csv';
-        } else {
-            key = dd.slice(0,4) + '/' + dd.slice(5,7) + '.csv';
-        }
-        rowCounts[key] = (rowCounts[key] || 0) + 1;
-    }
+    // Row counts from metadata (pre-computed by fetch_cases.py)
+    const rowCounts = metadata.row_counts || {};
 
     const monthNames = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 

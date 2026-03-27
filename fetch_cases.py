@@ -287,6 +287,77 @@ def write_csv_if_changed(filepath, rows, columns):
     return True
 
 
+def parse_age(age_str):
+    """Parse age string like '55 Years' or '3 Months' into fractional years."""
+    if not age_str:
+        return None
+    parts = age_str.split()
+    if len(parts) < 2:
+        return None
+    try:
+        num = int(parts[0])
+    except ValueError:
+        return None
+    unit = parts[1].lower()
+    if unit.startswith("year"):
+        return num
+    if unit.startswith("month"):
+        return num / 12
+    if unit.startswith("day") or unit.startswith("hour"):
+        return 0
+    return None
+
+
+def compute_trends(cases):
+    """Compute yearly aggregate statistics for the trends charts."""
+    yearly = {}
+
+    for row in cases:
+        dd = row.get("DeathDate", "")
+        if not dd or len(dd) < 4:
+            continue
+        year = dd[:4]
+        if year < "2002" or year > "2099":
+            continue
+
+        if year not in yearly:
+            yearly[year] = {
+                "total": 0, "homicide": 0, "suicide": 0, "accident": 0,
+                "natural": 0, "undetermined": 0, "drugs": 0, "guns": 0,
+                "under18": 0, "infant": 0,
+            }
+
+        y = yearly[year]
+        y["total"] += 1
+
+        mode = row.get("Mode", "")
+        if mode == "Homicide":
+            y["homicide"] += 1
+        elif mode == "Suicide":
+            y["suicide"] += 1
+        elif mode == "Accident":
+            y["accident"] += 1
+        elif mode == "Natural":
+            y["natural"] += 1
+        else:
+            y["undetermined"] += 1
+
+        dt = row.get("DeathType", "")
+        if dt == "Drug Related":
+            y["drugs"] += 1
+        if dt == "Gunshot Injury":
+            y["guns"] += 1
+
+        age = parse_age(row.get("Age", ""))
+        if age is not None:
+            if age < 18:
+                y["under18"] += 1
+            if age < 1:
+                y["infant"] += 1
+
+    return yearly
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Fetch Milwaukee County Medical Examiner case data from Power BI"
@@ -388,12 +459,16 @@ def main():
     all_dates = [r["DeathDate"] for r in merged if r.get("DeathDate")]
     newest_date = max(all_dates) if all_dates else ""
 
+    # Row counts per file (for metadata)
+    file_row_counts = {rel_path: len(rows) for rel_path, rows in buckets.items()}
+
     # Write metadata.json
     metadata = {
         "last_fetched": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "total_rows": len(merged),
         "newest_death_date": newest_date,
         "files": file_manifest,
+        "row_counts": file_row_counts,
     }
     metadata_path = os.path.join(output_dir, "metadata.json")
     os.makedirs(output_dir, exist_ok=True)
@@ -401,6 +476,14 @@ def main():
         json.dump(metadata, f, indent=2)
         f.write("\n")
     print(f"  metadata.json written", file=sys.stderr)
+
+    # Write trends.json — pre-computed yearly aggregates for chart rendering
+    trends = compute_trends(merged)
+    trends_path = os.path.join(output_dir, "trends.json")
+    with open(trends_path, "w") as f:
+        json.dump(trends, f, separators=(",", ":"))
+        f.write("\n")
+    print(f"  trends.json written", file=sys.stderr)
 
     # Summary
     print(f"\n--- Summary ---", file=sys.stderr)
