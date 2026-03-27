@@ -10,6 +10,14 @@ The Milwaukee County Medical Examiner's Office publishes case data through a [Po
 
 Data is refreshed weekly via GitHub Actions.
 
+## Features
+
+- **Interactive map** with address-level geocoded markers, color-coded by mode of death
+- **Filterable table** with column header filters, global search, and CSV export
+- **Trend charts** showing homicides, suicides, drug deaths, firearms, pediatric mortality, and more over time
+- **Downloadable CSVs** organized by month/year
+- **Deep-linkable** via hash routing (`#map`, `#table?q=fentanyl`, `#trends`, `#downloads`)
+
 ## Data
 
 Case records are split into CSV files by time period:
@@ -17,6 +25,7 @@ Case records are split into CSV files by time period:
 - `data/archive/pre-2020.csv` — All cases before January 2020
 - `data/{year}/{month}.csv` — Monthly files from 2020 onward (e.g., `data/2025/03.csv`)
 - `data/metadata.json` — File manifest with row counts and last-update timestamp
+- `data/geocache.json` — Address-to-coordinate cache from US Census Bureau geocoder
 
 ### Columns
 
@@ -46,6 +55,7 @@ Case records are split into CSV files by time period:
 ```bash
 pip install requests
 python fetch_cases.py --output-dir data --full
+python geocode.py        # geocode addresses via US Census Bureau (free, no API key)
 python3 -m http.server
 # Open http://localhost:8000
 ```

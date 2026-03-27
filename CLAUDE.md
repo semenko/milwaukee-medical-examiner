@@ -4,13 +4,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Public dataset and browsable web interface for Milwaukee County Medical Examiner case data, extracted from the office's Power BI government dashboard. The site is hosted on GitHub Pages.
+Public dataset and browsable web interface for Milwaukee County Medical Examiner case data, extracted from the office's Power BI government dashboard. The site is hosted on GitHub Pages at `nick.semenkovich.com/milwaukee-medical-examiner/`.
 
 ## Commands
 
 ```bash
 # Fetch all data from Power BI API (~70K cases, takes ~30s)
 python3 fetch_cases.py --output-dir data --full
+
+# Geocode new addresses via US Census Bureau (incremental, ~2min first run)
+python3 geocode.py
 
 # Serve the site locally (then open http://localhost:8000)
 python3 -m http.server
@@ -35,6 +38,10 @@ Both tables are fetched in full (paginated at 30K rows via RestartTokens), dedup
 
 Files are sorted by CaseNum_STR for stable git diffs. Only files with actual content changes are overwritten.
 
+### Geocoding (`geocode.py`)
+
+Batch geocodes unique addresses from all CSVs via the US Census Bureau Geocoder API (free, no API key). Results are cached in `data/geocache.json` (address string → `[lat, lng]` or `null` for no match). Runs incrementally — only geocodes addresses not already in the cache. ~96% match rate.
+
 ### Power BI response format
 
 Responses use compressed dictionary encoding:
@@ -50,12 +57,20 @@ Responses use compressed dictionary encoding:
 Single HTML file, no build step. CDN dependencies:
 - **Tabulator 6.x** — virtual DOM table with inline column header filters, sorting, pagination
 - **Papa Parse 5.x** — CSV parsing in browser
+- **Leaflet 1.9** + **MarkerCluster** — map with address-level markers, color-coded by mode of death
+- **Chart.js 4.x** — trend visualizations (CDN path is `chart.umd.js`, not `chart.umd.min.js`)
 
-Loads `data/metadata.json` for the file manifest, fetches all CSVs in parallel, concatenates into one array, renders with Tabulator.
+Four tabs with hash routing (`#map`, `#table`, `#trends`, `#downloads`):
+- **Map** (default): Leaflet + OpenStreetMap tiles. Markers positioned from `data/geocache.json` (address-level), falling back to zip code centroids with deterministic jitter. Filtered by year range and mode. "Near My Location" button uses browser geolocation, only zooms if within Milwaukee metro bounds.
+- **Table**: Tabulator with header filters (dropdowns for categorical, text input for others). Global search syncs to URL hash as `#table?q=...`. Download button exports filtered view as CSV.
+- **Trends**: Eight Chart.js charts (total deaths, homicides, suicides, drug-related, gunshot, under-18, infant, stacked modes by year). Excludes current partial year.
+- **Downloads**: Lists all CSV files grouped by year with row counts, linked for direct download.
+
+Loads `data/metadata.json` for the file manifest, fetches all CSVs in parallel, concatenates into one array, then initializes all views.
 
 ### Automation (`.github/workflows/update-data.yml`)
 
-Weekly cron (Sundays 6:00 UTC) + manual `workflow_dispatch`. Runs `fetch_cases.py`, commits to `data/` only if content changed.
+Weekly cron (Sundays 6:00 UTC) + manual `workflow_dispatch`. Runs `fetch_cases.py` then `geocode.py`, commits to `data/` only if content changed.
 
 ### API details
 
