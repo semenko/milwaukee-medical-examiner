@@ -783,7 +783,10 @@ const MODE_COLORS = {
         addRow('Death Type', d.DeathType);
         addRow('Death SubType', d.DeathSubType);
         addRow('Case Type', d.CaseType);
-        if (addr) addRow('Location', addr);
+        if (addr) {
+            const gmapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`;
+            addRow('Location', `${addr} <a href="${gmapsUrl}" target="_blank" rel="noopener" style="color:#2185d0;font-size:0.8rem;margin-left:0.5rem;">Google Maps &rarr;</a>`);
+        }
 
         html += `</table>`;
 
@@ -801,11 +804,8 @@ const MODE_COLORS = {
                 detailMiniMap = null;
             }
             detailMiniMap = L.map('detail-mini-map', {
-                zoomControl: false,
+                zoomControl: true,
                 attributionControl: false,
-                dragging: false,
-                scrollWheelZoom: false,
-                doubleClickZoom: false,
             }).setView(coords, 16);
 
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
