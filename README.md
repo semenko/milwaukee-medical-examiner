@@ -13,10 +13,11 @@ Data is refreshed weekly via GitHub Actions.
 ## Features
 
 - **Interactive map** with address-level geocoded markers, color-coded by mode of death
-- **Filterable table** with column header filters, global search, and CSV export
-- **Trend charts** showing homicides, suicides, drug deaths, firearms, pediatric mortality, and more over time
+- **Filterable table** with column header filters, global search, CSV export, and click-to-expand case detail with embedded map
+- **Trend charts** showing deaths by type (stacked), homicides, suicides, drug deaths, firearms, motor vehicle, pedestrian, alcohol, falls, pediatric mortality, and more
+- **Statistical analysis** with per-city filtering (22 municipalities), summary cards, box plots, age/race/gender demographics, vehicular occupant vs. pedestrian breakdowns, and trend lines with 95% confidence intervals
 - **Downloadable CSVs** organized by month/year
-- **Deep-linkable** via hash routing (`#map`, `#table?q=fentanyl`, `#trends`, `#downloads`)
+- **Deep-linkable** via hash routing (`#map`, `#table?q=fentanyl`, `#trends`, `#stats`, `#downloads`)
 
 ## Data
 
@@ -26,6 +27,8 @@ Case records are split into CSV files by time period:
 - `data/{year}/{month}.csv` — Monthly files from 2020 onward (e.g., `data/2025/03.csv`)
 - `data/metadata.json` — File manifest with row counts and last-update timestamp
 - `data/geocache.json` — Address-to-coordinate cache from US Census Bureau geocoder
+- `data/trends.json` — Pre-computed yearly aggregates for trend charts
+- `data/stats.json` — Pre-computed per-city statistics (demographics, box plots, trend CIs)
 
 ### Columns
 
@@ -56,6 +59,7 @@ Case records are split into CSV files by time period:
 pip install requests
 python fetch_cases.py --output-dir data --full
 python geocode.py        # geocode addresses via US Census Bureau (free, no API key)
+python postprocess.py    # generate trends.json and stats.json
 python3 -m http.server
 # Open http://localhost:8000
 ```

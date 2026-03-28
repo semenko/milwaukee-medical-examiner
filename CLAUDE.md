@@ -12,7 +12,7 @@ Public dataset and browsable web interface for Milwaukee County Medical Examiner
 # Full pipeline: fetch → geocode → post-process
 python3 fetch_cases.py --output-dir data --full   # Power BI API → CSVs + metadata.json
 python3 geocode.py                                 # Census Bureau → geocache.json
-python3 postprocess.py                             # CSVs → trends.json
+python3 postprocess.py                             # CSVs → trends.json + stats.json
 
 # Lint the frontend JS (catches use-before-define, undeclared vars, etc.)
 npm run lint
@@ -44,7 +44,11 @@ Files are sorted by CaseNum_STR for stable git diffs. Only files with actual con
 
 **`geocode.py`** — Batch geocodes unique addresses from all CSVs via the US Census Bureau Geocoder API (free, no API key). Results are cached in `data/geocache.json` (address string → `[lat, lng]` or `null` for no match). Runs incrementally — only geocodes addresses not already in the cache. ~96% match rate.
 
-**`postprocess.py`** — Reads all CSVs and generates derived data files. Currently produces `data/trends.json` (yearly aggregates for the Trends tab charts). Keeps derived-data logic separate from the fragile Power BI API fetch code.
+**`postprocess.py`** — Reads all CSVs and generates derived data files:
+- `data/trends.json` — yearly aggregates for the Trends tab charts
+- `data/stats.json` — per-city statistics for the Stats tab (22 cities with ≥100 cases), including summary cards, box plots, demographics, vehicular breakdowns, and trend lines with 95% CI computed via OLS regression (pure Python, no numpy)
+
+City name normalization handles misspellings (e.g., "Milw." → "Milwaukee", "Wawatosa" → "Wauwatosa"). DeathType merging groups related values (e.g., Cancer+Neoplastic, Motor Vehicle Driver+Passenger). Categories are auto-suppressed for small cities when median annual count < 1.
 
 ### Power BI response format
 
@@ -64,13 +68,14 @@ Single HTML file, no build step. CDN dependencies:
 - **Leaflet 1.9** + **MarkerCluster** — map with address-level markers, color-coded by mode of death
 - **Chart.js 4.x** — trend visualizations (CDN path is `chart.umd.js`, not `chart.umd.min.js`)
 
-Four tabs with hash routing (`#map`, `#table`, `#trends`, `#downloads`):
+Five tabs with hash routing (`#map`, `#table`, `#trends`, `#stats`, `#downloads`):
 - **Map** (default): Leaflet + OpenStreetMap tiles. Markers positioned from `data/geocache.json` (address-level), falling back to zip code centroids with deterministic jitter. Filtered by year range and mode. "Near My Location" button uses browser geolocation, only zooms if within Milwaukee metro bounds.
-- **Table**: Tabulator with header filters (dropdowns for categorical, text input for others). Global search syncs to URL hash as `#table?q=...`. Download button exports filtered view as CSV.
-- **Trends**: Eight Chart.js charts (total deaths, homicides, suicides, drug-related, gunshot, under-18, infant, stacked modes by year). Excludes current partial year.
-- **Downloads**: Lists all CSV files grouped by year with row counts, linked for direct download.
+- **Table**: Tabulator with header filters (dropdowns for categorical, text input for others). Year range selector lazy-loads older CSVs on demand. Global search syncs to URL hash as `#table?q=...`. Row click opens detail popup with embedded Leaflet mini map and Google Maps link. DeathType dropdown merges related values (Cancer+Neoplastic, etc.). "Hide missing dates" toggle for ~60 dateless cases.
+- **Trends**: Chart.js charts including Deaths by Type stacked area (2014+), total deaths bar, and individual line charts for homicide, suicide, drugs, gunshot, motor vehicle, pedestrian, alcohol, falls, under-18, infant, plus stacked modes. Uses pre-computed `data/trends.json`.
+- **Stats**: Per-city statistical analysis from pre-computed `data/stats.json`. City dropdown (22 municipalities). Summary cards, mode donut, yearly box plot, vehicular occupant vs. pedestrian, age histogram stacked by mode, race/gender breakdowns, and trend lines with 95% CI bands for all categories with sufficient data.
+- **Downloads**: Lists all CSV files grouped by year with row counts from `metadata.json`.
 
-Loads `data/metadata.json` for the file manifest, fetches all CSVs in parallel, concatenates into one array, then initializes all views.
+Initial page load fetches only last 2 years of CSVs plus metadata, trends, geocache, and stats JSON files. Older CSVs are lazy-loaded when the user selects earlier years in the table or map.
 
 ### Automation (`.github/workflows/update-data.yml`)
 
