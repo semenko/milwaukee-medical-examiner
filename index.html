@@ -479,14 +479,15 @@ const MODE_COLORS = {
         });
     });
 
-    // 1. Load metadata and trends in parallel
+    // 1. Load metadata, trends, and geocache in parallel
     let metadata, trendsData;
     try {
-        const [metaResp, trendsResp] = await Promise.all([
-            fetch('data/metadata.json'), fetch('data/trends.json')
+        const [metaResp, trendsResp, geoResp] = await Promise.all([
+            fetch('data/metadata.json'), fetch('data/trends.json'), fetch('data/geocache.json')
         ]);
         metadata = await metaResp.json();
         trendsData = await trendsResp.json();
+        GEOCACHE = await geoResp.json();
     } catch (e) {
         loadingEl.textContent = 'Error loading metadata: ' + e.message;
         return;
@@ -746,10 +747,19 @@ const MODE_COLORS = {
     document.getElementById('row-detail-backdrop').addEventListener('click', () => detailEl.style.display = 'none');
     document.addEventListener('keydown', e => { if (e.key === 'Escape') detailEl.style.display = 'none'; });
 
+    let detailMiniMap = null;
+
     table.on('rowClick', function(e, row) {
         const d = row.getData();
         const addr = [d.DeathAddr, d.DeathCity, d.DeathState, d.DeathZip].filter(Boolean).join(', ');
-        const osmUrl = addr ? `https://www.openstreetmap.org/search?query=${encodeURIComponent(addr)}` : '';
+
+        // Look up coordinates from geocache
+        const street = (d.DeathAddr || '').trim();
+        const city = (d.DeathCity || '').trim();
+        const state = (d.DeathState || 'WI').trim();
+        const zip = (d.DeathZip || '').trim();
+        const geoKey = (street && city && zip) ? `${street}, ${city}, ${state} ${zip}` : '';
+        const coords = (geoKey && GEOCACHE[geoKey]) || null;
 
         let html = `<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:1rem;">`;
         html += `<h3 style="font-size:1.1rem;margin:0;">Case ${d.CaseNum_STR || d.CaseNum || ''}</h3>`;
@@ -773,16 +783,41 @@ const MODE_COLORS = {
         addRow('Death Type', d.DeathType);
         addRow('Death SubType', d.DeathSubType);
         addRow('Case Type', d.CaseType);
-
-        if (addr) {
-            let addrHtml = addr;
-            if (osmUrl) addrHtml += ` <a href="${osmUrl}" target="_blank" rel="noopener" style="color:#2185d0;font-size:0.8rem;margin-left:0.5rem;">View on map &rarr;</a>`;
-            addRow('Location', addrHtml);
-        }
+        if (addr) addRow('Location', addr);
 
         html += `</table>`;
+
+        if (coords) {
+            html += `<div id="detail-mini-map" style="width:100%;height:200px;margin-top:1rem;border-radius:4px;border:1px solid #ddd;"></div>`;
+        }
+
         detailContent.innerHTML = html;
         detailEl.style.display = 'block';
+
+        // Initialize mini map after the DOM element exists
+        if (coords) {
+            if (detailMiniMap) {
+                detailMiniMap.remove();
+                detailMiniMap = null;
+            }
+            detailMiniMap = L.map('detail-mini-map', {
+                zoomControl: false,
+                attributionControl: false,
+                dragging: false,
+                scrollWheelZoom: false,
+                doubleClickZoom: false,
+            }).setView(coords, 16);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 18,
+            }).addTo(detailMiniMap);
+
+            const color = MODE_COLORS[d.Mode] || '#9ca3af';
+            L.circleMarker(coords, {
+                radius: 8, fillColor: color, color: '#333',
+                weight: 2, fillOpacity: 0.9,
+            }).addTo(detailMiniMap);
+        }
     });
 
     // ==================== MAP ====================
@@ -804,14 +839,6 @@ const MODE_COLORS = {
     });
 
     async function initMap() {
-        // Load geocache (address -> [lat, lng])
-        try {
-            const resp = await fetch('data/geocache.json');
-            GEOCACHE = await resp.json();
-        } catch (e) {
-            console.warn('Could not load geocache:', e);
-        }
-
         leafletMap = L.map('map').setView([43.04, -87.96], 11);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
