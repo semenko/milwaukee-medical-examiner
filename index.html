@@ -1087,22 +1087,29 @@ const MODE_COLORS = {
         },
     };
 
+    // Death types only populated from 2014 onward
+    const typeYearLabels = yearLabels.filter(y => y >= '2014');
+    function typeSeries(key) {
+        return typeYearLabels.map(y => (trendsData[y] || {})[key] || 0);
+    }
     function stackDS(label, key, color, order) {
-        return { label, data: series(key), borderColor: color, backgroundColor: color + '88', fill: true, tension: 0.3, pointRadius: 0, borderWidth: 1.5, order };
+        return { label, data: typeSeries(key), borderColor: color, backgroundColor: color + '88', fill: true, tension: 0.3, pointRadius: 0, borderWidth: 1.5, order };
     }
 
     new Chart(document.getElementById('chart-types'), {
         type: 'line',
         data: {
-            labels: yearLabels,
+            labels: typeYearLabels,
             datasets: [
                 stackDS('Gunshot', 'dt_guns', '#ef4444', 1),
                 stackDS('Drug Related', 'dt_drugs', '#f59e0b', 2),
-                stackDS('Falls', 'dt_falls', '#8b5cf6', 3),
-                stackDS('Motor Vehicle', 'dt_motor_vehicle', '#0891b2', 4),
-                stackDS('Alcohol', 'dt_alcohol', '#d97706', 5),
-                stackDS('Infectious', 'dt_infectious', '#10b981', 6),
-                stackDS('Cardiovascular', 'dt_cardiovascular', '#6b7280', 7),
+                stackDS('Asphyxia', 'dt_asphyxia', '#ec4899', 3),
+                stackDS('Falls', 'dt_falls', '#8b5cf6', 4),
+                stackDS('Motor Vehicle', 'dt_motor_vehicle', '#0891b2', 5),
+                stackDS('Alcohol', 'dt_alcohol', '#d97706', 6),
+                stackDS('Cancer', 'dt_cancer', '#14b8a6', 7),
+                stackDS('Infectious', 'dt_infectious', '#10b981', 8),
+                stackDS('Cardiovascular', 'dt_cardiovascular', '#6b7280', 9),
             ]
         },
         options: stackedOpts,
