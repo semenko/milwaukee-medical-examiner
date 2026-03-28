@@ -331,6 +331,11 @@
 <div id="trends-view" class="tab-content">
     <div class="trends-grid">
         <div class="chart-card full-width">
+            <h3>Deaths by Type</h3>
+            <p>Top causes/categories of death per year (stacked)</p>
+            <canvas id="chart-types"></canvas>
+        </div>
+        <div class="chart-card full-width">
             <h3>Total Deaths per Year</h3>
             <p>All cases investigated by the Milwaukee County Medical Examiner</p>
             <canvas id="chart-total"></canvas>
@@ -354,6 +359,26 @@
             <h3>Gunshot Deaths</h3>
             <p>All deaths involving gunshot injuries</p>
             <canvas id="chart-guns"></canvas>
+        </div>
+        <div class="chart-card">
+            <h3>Motor Vehicle Deaths</h3>
+            <p>Driver and passenger fatalities (excludes pedestrians)</p>
+            <canvas id="chart-motor-vehicle"></canvas>
+        </div>
+        <div class="chart-card">
+            <h3>Pedestrian Deaths</h3>
+            <p>Pedestrians struck by motor vehicles</p>
+            <canvas id="chart-pedestrian"></canvas>
+        </div>
+        <div class="chart-card">
+            <h3>Alcohol-Related Deaths</h3>
+            <p>Deaths attributed to alcohol use</p>
+            <canvas id="chart-alcohol"></canvas>
+        </div>
+        <div class="chart-card">
+            <h3>Falls</h3>
+            <p>Accidental fall fatalities</p>
+            <canvas id="chart-falls"></canvas>
         </div>
         <div class="chart-card">
             <h3>Deaths Under Age 18</h3>
@@ -556,8 +581,32 @@ const MODE_COLORS = {
     const modeValues = uniqueVals('Mode');
     const genderValues = uniqueVals('Gender');
     const raceValues = uniqueVals('Race');
-    const deathTypeValues = uniqueVals('DeathType');
     const caseTypeValues = uniqueVals('CaseType');
+
+    // Merge related DeathType values for the filter dropdown
+    const DEATH_TYPE_MERGE = {
+        "Neoplastic": "Cancer",
+        "Motorized Vehicle - Driver": "Motor Vehicle",
+        "Motorized Vehicle - Passenger": "Motor Vehicle",
+        "Motor Vehicle": "Motor Vehicle",
+        "Fall": "Falls",
+        "Firearms": "Gunshot Injury",
+        "Burn": "Fire/Burn",
+        "Fire Related Injury": "Fire/Burn",
+        "Water Related Incident": "Drowning/Water",
+        "Drowning (non-boat)": "Drowning/Water",
+        "Boating": "Drowning/Water",
+    };
+
+    // Build reverse map: merged name → set of raw values
+    const deathTypeMergedGroups = {};
+    const rawDtValues = uniqueVals('DeathType');
+    for (const raw of rawDtValues) {
+        const merged = DEATH_TYPE_MERGE[raw] || raw;
+        if (!deathTypeMergedGroups[merged]) deathTypeMergedGroups[merged] = [];
+        deathTypeMergedGroups[merged].push(raw);
+    }
+    const deathTypeValues = Object.keys(deathTypeMergedGroups).sort();
 
     // 4. Define columns
     const columns = [
@@ -588,7 +637,13 @@ const MODE_COLORS = {
         },
         {
             title: "Death Type", field: "DeathType", width: 140,
-            headerFilter: "list", headerFilterParams: { values: { "": "All", ...Object.fromEntries(deathTypeValues.map(v => [v, v])) } }
+            headerFilter: "list",
+            headerFilterParams: { values: { "": "All", ...Object.fromEntries(deathTypeValues.map(v => [v, v])) } },
+            headerFilterFunc: function(filterVal, rowVal) {
+                if (!filterVal) return true;
+                const group = deathTypeMergedGroups[filterVal];
+                return group ? group.includes(rowVal) : rowVal === filterVal;
+            },
         },
         { title: "City", field: "DeathCity", headerFilter: "input", width: 120 },
         { title: "Zip", field: "DeathZip", headerFilter: "input", width: 80 },
@@ -1016,6 +1071,43 @@ const MODE_COLORS = {
         });
     }
 
+    // Deaths by Type - stacked area
+    const stackedOpts = {
+        ...chartDefaults,
+        aspectRatio: 3,
+        plugins: {
+            legend: {
+                display: true, position: 'top',
+                labels: { boxWidth: 12, padding: 12, font: { size: 11 } }
+            }
+        },
+        scales: {
+            x: { grid: { display: false }, stacked: true },
+            y: { beginAtZero: true, grid: { color: '#eee' }, stacked: true },
+        },
+    };
+
+    function stackDS(label, key, color, order) {
+        return { label, data: series(key), borderColor: color, backgroundColor: color + '88', fill: true, tension: 0.3, pointRadius: 0, borderWidth: 1.5, order };
+    }
+
+    new Chart(document.getElementById('chart-types'), {
+        type: 'line',
+        data: {
+            labels: yearLabels,
+            datasets: [
+                stackDS('Gunshot', 'dt_guns', '#ef4444', 1),
+                stackDS('Drug Related', 'dt_drugs', '#f59e0b', 2),
+                stackDS('Falls', 'dt_falls', '#8b5cf6', 3),
+                stackDS('Motor Vehicle', 'dt_motor_vehicle', '#0891b2', 4),
+                stackDS('Alcohol', 'dt_alcohol', '#d97706', 5),
+                stackDS('Infectious', 'dt_infectious', '#10b981', 6),
+                stackDS('Cardiovascular', 'dt_cardiovascular', '#6b7280', 7),
+            ]
+        },
+        options: stackedOpts,
+    });
+
     // Total deaths - bar chart
     new Chart(document.getElementById('chart-total'), {
         type: 'bar',
@@ -1035,6 +1127,10 @@ const MODE_COLORS = {
     makeLineChart('chart-suicide', series('suicide'), '#8b5cf6');
     makeLineChart('chart-drugs', series('drugs'), '#f59e0b');
     makeLineChart('chart-guns', series('guns'), '#dc2626');
+    makeLineChart('chart-motor-vehicle', series('dt_motor_vehicle'), '#0891b2');
+    makeLineChart('chart-pedestrian', series('dt_pedestrian'), '#0e7490');
+    makeLineChart('chart-alcohol', series('dt_alcohol'), '#d97706');
+    makeLineChart('chart-falls', series('dt_falls'), '#8b5cf6');
     makeLineChart('chart-under18', series('under18'), '#0891b2');
     makeLineChart('chart-infant', series('infant'), '#6366f1');
 

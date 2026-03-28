@@ -55,6 +55,27 @@ def read_all_cases():
     return cases
 
 
+# Merge map for DeathType values (source → canonical display name)
+DEATH_TYPE_MERGE = {
+    "Neoplastic": "Cancer",
+    "Motorized Vehicle - Driver": "Motor Vehicle",
+    "Motorized Vehicle - Passenger": "Motor Vehicle",
+    "Motor Vehicle": "Motor Vehicle",
+    "Fall": "Falls",
+    "Firearms": "Gunshot Injury",
+    "Burn": "Fire/Burn",
+    "Fire Related Injury": "Fire/Burn",
+    "Water Related Incident": "Drowning/Water",
+    "Drowning (non-boat)": "Drowning/Water",
+    "Boating": "Drowning/Water",
+}
+
+
+def merged_death_type(raw):
+    """Return the canonical death type after applying merges."""
+    return DEATH_TYPE_MERGE.get(raw, raw)
+
+
 def compute_trends(cases):
     """Compute yearly aggregate statistics for the Trends charts."""
     yearly = {}
@@ -72,6 +93,11 @@ def compute_trends(cases):
                 "total": 0, "homicide": 0, "suicide": 0, "accident": 0,
                 "natural": 0, "undetermined": 0, "drugs": 0, "guns": 0,
                 "under18": 0, "infant": 0,
+                # Death types (merged)
+                "dt_cardiovascular": 0, "dt_drugs": 0, "dt_falls": 0,
+                "dt_infectious": 0, "dt_guns": 0, "dt_cancer": 0,
+                "dt_motor_vehicle": 0, "dt_pedestrian": 0, "dt_asphyxia": 0,
+                "dt_alcohol": 0, "dt_fire_burn": 0, "dt_drowning": 0,
             }
 
         y = yearly[year]
@@ -89,11 +115,35 @@ def compute_trends(cases):
         else:
             y["undetermined"] += 1
 
-        dt = row.get("DeathType", "")
+        raw_dt = row.get("DeathType", "")
+        dt = merged_death_type(raw_dt)
+
         if dt == "Drug Related":
             y["drugs"] += 1
-        if dt == "Gunshot Injury":
+            y["dt_drugs"] += 1
+        if raw_dt in ("Gunshot Injury", "Firearms"):
             y["guns"] += 1
+            y["dt_guns"] += 1
+        if dt == "Cardiovascular":
+            y["dt_cardiovascular"] += 1
+        if dt == "Falls":
+            y["dt_falls"] += 1
+        if dt == "Infectious":
+            y["dt_infectious"] += 1
+        if dt == "Cancer":
+            y["dt_cancer"] += 1
+        if dt == "Motor Vehicle":
+            y["dt_motor_vehicle"] += 1
+        if raw_dt == "Motorized Vehicle - Pedestrian":
+            y["dt_pedestrian"] += 1
+        if dt == "Asphyxia":
+            y["dt_asphyxia"] += 1
+        if dt == "Alcohol Related":
+            y["dt_alcohol"] += 1
+        if dt == "Fire/Burn":
+            y["dt_fire_burn"] += 1
+        if dt == "Drowning/Water":
+            y["dt_drowning"] += 1
 
         age = parse_age(row.get("Age", ""))
         if age is not None:
