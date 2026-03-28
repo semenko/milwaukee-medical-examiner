@@ -1,0 +1,26 @@
+{
+  "name": "mke-coroner",
+  "version": "1.0.0",
+  "description": "Searchable, filterable public case records from the [Milwaukee County Medical Examiner's Office](https://county.milwaukee.gov/EN/Medical-Examiner).",
+  "main": "index.js",
+  "scripts": {
+    "lint": "eslint index.html",
+    "test": "eslint index.html"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/semenko/milwaukee-medical-examiner.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/semenko/milwaukee-medical-examiner/issues"
+  },
+  "homepage": "https://github.com/semenko/milwaukee-medical-examiner#readme",
+  "devDependencies": {
+    "eslint": "^10.1.0",
+    "eslint-plugin-html": "^8.1.4"
+  }
+}

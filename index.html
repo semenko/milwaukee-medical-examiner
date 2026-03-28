@@ -415,6 +415,11 @@ const MODE_COLORS = {
     const dataInfoEl = document.getElementById('data-info');
     const rowCountEl = document.getElementById('row-count');
 
+    // Hoisted for use in tab-switching before the map section
+    let mapInitialized = false;
+    let leafletMap = null;
+    let markerCluster = null;
+
     // Hash router: #map, #table, #table?q=search, #trends, #downloads
     const TAB_HASH = {
         'map-view': 'map', 'table-view': 'table',
@@ -781,10 +786,6 @@ const MODE_COLORS = {
     });
 
     // ==================== MAP ====================
-
-    let mapInitialized = false;
-    let leafletMap = null;
-    let markerCluster = null;
 
     // Populate year selectors
     const yearStartSelect = document.getElementById('map-year-start');

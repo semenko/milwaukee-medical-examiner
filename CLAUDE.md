@@ -14,11 +14,14 @@ python3 fetch_cases.py --output-dir data --full   # Power BI API → CSVs + meta
 python3 geocode.py                                 # Census Bureau → geocache.json
 python3 postprocess.py                             # CSVs → trends.json
 
+# Lint the frontend JS (catches use-before-define, undeclared vars, etc.)
+npm run lint
+
 # Serve the site locally (then open http://localhost:8000)
 python3 -m http.server
 ```
 
-Dependencies: `pip install requests`
+Dependencies: `pip install requests` and `npm install` (for linting only)
 
 ## Architecture
 
