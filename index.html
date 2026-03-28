@@ -14,6 +14,7 @@
 
     <!-- Chart.js -->
     <script src="https://unpkg.com/chart.js@4.4.7/dist/chart.umd.js"></script>
+    <script>Chart.defaults.animation = false;</script>
 
     <!-- Leaflet -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -1468,7 +1469,7 @@ const MODE_COLORS = {
                     ]
                 },
                 options: {
-                    ...baseOpts, indexAxis: 'x', aspectRatio: 1.3,
+                    ...baseOpts, indexAxis: 'x', aspectRatio: 1.3, grouped: false,
                     scales: { x: { display: false, min: -0.5, max: 0.5 }, y: { beginAtZero: false, grid: { color: '#eee' } } },
                     plugins: {
                         legend: { display: false },
