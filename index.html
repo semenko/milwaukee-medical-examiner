@@ -483,8 +483,8 @@
             <h3>Trend Lines with 95% Confidence Intervals</h3>
             <p>Linear regression trends for available categories. Shaded bands show 95% CI for the trend.</p>
         </div>
-        <div id="stats-trend-charts"></div>
     </div>
+    <div class="trends-grid" id="stats-trend-charts"></div>
 </div>
 
 <!-- DOWNLOADS VIEW -->
@@ -1412,6 +1412,12 @@ const MODE_COLORS = {
         const bp = d.box_plot.total;
         if (bp) {
             const outlierPts = bp.outliers.map(o => ({ x: 0, y: o.value }));
+            // Individual year data points with small jitter so they don't overlap
+            const yc = d.yearly_counts;
+            const yearPts = yc.total.map(function(v, i) {
+                const jit = (((i * 7 + 3) % 13) / 13 - 0.5) * 0.25;
+                return { x: jit, y: v, _year: yc.years[i] };
+            });
             statsChartInstances.push(new Chart(document.getElementById('stats-box-total'), {
                 type: 'bar',
                 data: {
@@ -1426,23 +1432,32 @@ const MODE_COLORS = {
                             borderWidth: 3, showLine: false,
                         },
                         {
+                            type: 'scatter', label: 'Years',
+                            data: yearPts, backgroundColor: '#2185d066', borderColor: '#2185d0',
+                            pointRadius: 4, showLine: false,
+                        },
+                        {
                             type: 'scatter', label: 'Outliers',
                             data: outlierPts, backgroundColor: '#f59e0b', borderColor: '#d97706',
-                            pointRadius: 5, showLine: false,
+                            pointRadius: 6, showLine: false,
                         },
                     ]
                 },
                 options: {
                     ...baseOpts, indexAxis: 'x', aspectRatio: 1.3,
-                    scales: { x: { display: false }, y: { beginAtZero: false, grid: { color: '#eee' } } },
+                    scales: { x: { display: false, min: -0.5, max: 0.5 }, y: { beginAtZero: false, grid: { color: '#eee' } } },
                     plugins: {
                         legend: { display: false },
                         tooltip: {
                             callbacks: {
                                 label: function(ctx) {
+                                    if (ctx.dataset.label === 'Years') {
+                                        const pt = yearPts[ctx.dataIndex];
+                                        return pt ? `${pt._year}: ${pt.y}` : '';
+                                    }
                                     if (ctx.dataset.label === 'Outliers') {
                                         const o = bp.outliers[ctx.dataIndex];
-                                        return o ? `${o.year}: ${o.value}` : '';
+                                        return o ? `${o.year}: ${o.value} (outlier)` : '';
                                     }
                                     if (ctx.dataset.label === 'Median') return `Median: ${bp.median}`;
                                     if (ctx.dataset.label === 'IQR') return `Q1: ${bp.q1}, Q3: ${bp.q3}`;
