@@ -358,6 +358,7 @@
         <span id="map-count"></span>
     </div>
     <div class="map-controls map-legend">
+        <label style="cursor:pointer;"><input type="checkbox" id="map-cluster" checked> Cluster</label>
         <span><span class="mode-dot" style="background:#6b7280;"></span> Natural</span>
         <span><span class="mode-dot" style="background:#f59e0b;"></span> Accident</span>
         <span><span class="mode-dot" style="background:#ef4444;"></span> Homicide</span>
@@ -533,6 +534,8 @@ const MODE_COLORS = {
     let mapInitialized = false;
     let leafletMap = null;
     let markerCluster = null;
+    let markerPlain = null;
+    let activeMarkerLayer = null;
 
     // Hash router: #map, #table, #table?q=search, #trends, #downloads
     const TAB_HASH = {
@@ -985,11 +988,13 @@ const MODE_COLORS = {
     });
 
     const NON_NATURAL_MODES = new Set(['Accident', 'Homicide', 'Suicide', 'Undetermined', 'Unknown', 'Not Applicable']);
+    const mapClusterCheckbox = document.getElementById('map-cluster');
 
     // Auto-update map when any filter changes
     yearStartSelect.addEventListener('change', () => updateMap());
     yearEndSelect.addEventListener('change', () => updateMap());
     mapModeSelect.addEventListener('change', () => updateMap());
+    mapClusterCheckbox.addEventListener('change', () => updateMap());
 
     async function initMap() {
         leafletMap = L.map('map').setView([43.04, -87.96], 11);
@@ -1004,7 +1009,9 @@ const MODE_COLORS = {
             spiderfyOnMaxZoom: true,
             disableClusteringAtZoom: 15,
         });
-        leafletMap.addLayer(markerCluster);
+        markerPlain = L.layerGroup();
+        activeMarkerLayer = markerCluster;
+        leafletMap.addLayer(activeMarkerLayer);
 
         updateMap();
         mapInitialized = true;
@@ -1067,7 +1074,11 @@ const MODE_COLORS = {
             return true;
         });
 
+        // Swap between clustered and plain layers
+        leafletMap.removeLayer(activeMarkerLayer);
+        activeMarkerLayer = mapClusterCheckbox.checked ? markerCluster : markerPlain;
         markerCluster.clearLayers();
+        markerPlain.clearLayers();
         const markers = [];
 
         let mapped = 0;
@@ -1096,7 +1107,12 @@ const MODE_COLORS = {
             mapped++;
         }
 
-        markerCluster.addLayers(markers);
+        if (mapClusterCheckbox.checked) {
+            markerCluster.addLayers(markers);
+        } else {
+            markers.forEach(m => markerPlain.addLayer(m));
+        }
+        leafletMap.addLayer(activeMarkerLayer);
         document.getElementById('map-count').textContent =
             `${mapped.toLocaleString()} of ${filtered.length.toLocaleString()} cases mapped (${startYear}\u2013${endYear})`;
     }
