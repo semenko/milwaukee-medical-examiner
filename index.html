@@ -358,7 +358,6 @@
         <span id="map-count"></span>
     </div>
     <div class="map-controls map-legend">
-        <label style="cursor:pointer;"><input type="checkbox" id="map-show-centroids" checked> Show approximate (ZIP-based)</label>
         <span><span class="mode-dot" style="background:#6b7280;"></span> Natural</span>
         <span><span class="mode-dot" style="background:#f59e0b;"></span> Accident</span>
         <span><span class="mode-dot" style="background:#ef4444;"></span> Homicide</span>
@@ -986,13 +985,11 @@ const MODE_COLORS = {
     });
 
     const NON_NATURAL_MODES = new Set(['Accident', 'Homicide', 'Suicide', 'Undetermined', 'Unknown', 'Not Applicable']);
-    const mapShowCentroids = document.getElementById('map-show-centroids');
 
     // Auto-update map when any filter changes
     yearStartSelect.addEventListener('change', () => updateMap());
     yearEndSelect.addEventListener('change', () => updateMap());
     mapModeSelect.addEventListener('change', () => updateMap());
-    mapShowCentroids.addEventListener('change', () => updateMap());
 
     async function initMap() {
         leafletMap = L.map('map').setView([43.04, -87.96], 11);
@@ -1023,7 +1020,7 @@ const MODE_COLORS = {
         if (street && city && zip) {
             const key = `${street}, ${city}, ${state} ${zip}`;
             const cached = GEOCACHE[key];
-            if (cached) return { coords: cached, isCentroid: false };
+            if (cached) return cached; // [lat, lng] from Census geocoder
         }
 
         // Fall back to zip centroid with jitter
@@ -1037,13 +1034,10 @@ const MODE_COLORS = {
             h = ((h << 5) - h + cn.charCodeAt(i)) | 0;
         }
         const j = (h & 0xffff) / 0xffff;
-        return {
-            coords: [
-                centroid[0] + (j - 0.5) * 0.012,
-                centroid[1] + ((j * 2.718) % 1 - 0.5) * 0.015
-            ],
-            isCentroid: true
-        };
+        return [
+            centroid[0] + (j - 0.5) * 0.012,
+            centroid[1] + ((j * 2.718) % 1 - 0.5) * 0.015
+        ];
     }
 
     async function updateMap() {
@@ -1061,7 +1055,6 @@ const MODE_COLORS = {
         }
 
         const modeFilter = mapModeSelect.value;
-        const showCentroids = mapShowCentroids.checked;
         const startDate = startYear + '-01-01';
         const endDate = endYear + '-12-31';
 
@@ -1079,19 +1072,18 @@ const MODE_COLORS = {
 
         let mapped = 0;
         for (const row of filtered) {
-            const result = getCoords(row);
-            if (!result) continue;
-            if (result.isCentroid && !showCentroids) continue;
+            const coords = getCoords(row);
+            if (!coords) continue;
 
             const color = MODE_COLORS[row.Mode] || '#9ca3af';
             const icon = L.divIcon({
                 className: '',
-                html: `<div style="width:12px;height:12px;border-radius:50%;background:${color};border:1px solid rgba(0,0,0,0.3);opacity:${result.isCentroid ? '0.4' : '1'};"></div>`,
+                html: `<div style="width:12px;height:12px;border-radius:50%;background:${color};border:1px solid rgba(0,0,0,0.3);"></div>`,
                 iconSize: [12, 12],
                 iconAnchor: [6, 6],
             });
 
-            const marker = L.marker(result.coords, { icon: icon });
+            const marker = L.marker(coords, { icon: icon });
             marker.bindPopup(
                 `<b>${row.CaseNum_STR || ''}</b><br>` +
                 `${row.DeathDate || ''}<br>` +
