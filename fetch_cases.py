@@ -272,7 +272,7 @@ def write_csv_if_changed(filepath, rows, columns):
     writer = csv.DictWriter(buf, fieldnames=columns, extrasaction="ignore", lineterminator="\n")
     writer.writeheader()
     writer.writerows(rows)
-    new_content = buf.getvalue()
+    new_content = buf.getvalue().replace("\r", "")
 
     if os.path.exists(filepath):
         with open(filepath, "r") as f:
