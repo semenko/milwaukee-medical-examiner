@@ -269,7 +269,7 @@ def write_csv_if_changed(filepath, rows, columns):
     Returns True if file was written (new or changed), False if unchanged.
     """
     buf = io.StringIO()
-    writer = csv.DictWriter(buf, fieldnames=columns, extrasaction="ignore")
+    writer = csv.DictWriter(buf, fieldnames=columns, extrasaction="ignore", lineterminator="\n")
     writer.writeheader()
     writer.writerows(rows)
     new_content = buf.getvalue()
