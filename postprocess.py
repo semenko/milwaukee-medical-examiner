@@ -457,7 +457,6 @@ def compute_stats(cases):
         by_city[city] = compute_city_stats(city_groups[city], all_years)
 
     return {
-        "generated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "cities": city_list,
         "by_city": by_city,
     }
@@ -529,7 +528,7 @@ def main():
     trends = compute_trends(cases)
     trends_path = os.path.join(DATA_DIR, "trends.json")
     with open(trends_path, "w") as f:
-        json.dump(trends, f, separators=(",", ":"))
+        json.dump(trends, f, indent=2, sort_keys=True)
         f.write("\n")
     years_sorted = sorted(trends.keys())
     print(f"  {len(trends)} years ({years_sorted[0]}-{years_sorted[-1]})", file=sys.stderr)
@@ -540,7 +539,7 @@ def main():
     stats = compute_stats(cases)
     stats_path = os.path.join(DATA_DIR, "stats.json")
     with open(stats_path, "w") as f:
-        json.dump(stats, f, separators=(",", ":"))
+        json.dump(stats, f, indent=2, sort_keys=True)
         f.write("\n")
     print(f"  {len(stats['cities'])} cities", file=sys.stderr)
     print(f"  stats.json written ({os.path.getsize(stats_path) // 1024} KB)", file=sys.stderr)

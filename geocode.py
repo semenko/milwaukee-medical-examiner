@@ -32,10 +32,19 @@ def load_cache():
 
 
 def save_cache(cache):
-    """Write geocache to disk."""
+    """Write geocache to disk.
+
+    One entry per line with sorted keys so git diffs stay readable —
+    json.dump(indent=2) would explode each [lat, lng] onto its own lines,
+    bloating the file ~5x.
+    """
+    items = sorted(cache.items())
     with open(CACHE_FILE, "w") as f:
-        json.dump(cache, f, separators=(",", ":"))
-        f.write("\n")
+        f.write("{\n")
+        for i, (k, v) in enumerate(items):
+            comma = "," if i < len(items) - 1 else ""
+            f.write(f"{json.dumps(k)}: {json.dumps(v, separators=(',', ':'))}{comma}\n")
+        f.write("}\n")
 
 
 def collect_addresses():
