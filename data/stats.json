@@ -5225,8 +5225,8 @@
             "Asian/Pacific Islander",
             "Multi-Racial",
             "Hispanic",
-            "Eastern Indian",
-            "Native American"
+            "Native American",
+            "Eastern Indian"
           ],
           "values": [
             316,
@@ -12416,8 +12416,8 @@
         "race": {
           "labels": [
             "White",
-            "Hispanic",
             "Asian/Pacific Islander",
+            "Hispanic",
             "Black",
             "Eastern Indian",
             "Multi-Racial"
@@ -13753,8 +13753,8 @@
             "Hispanic",
             "Eastern Indian",
             "Asian/Pacific Islander",
-            "Multi-Racial",
-            "Native American"
+            "Native American",
+            "Multi-Racial"
           ],
           "values": [
             1616,
@@ -15735,8 +15735,8 @@
           "labels": [
             "White",
             "Black",
-            "Hispanic",
             "Eastern Indian",
+            "Hispanic",
             "Native American"
           ],
           "values": [
@@ -16940,8 +16940,8 @@
             "White",
             "Black",
             "Asian/Pacific Islander",
-            "Native American",
-            "Hispanic"
+            "Hispanic",
+            "Native American"
           ],
           "values": [
             164,
@@ -23685,8 +23685,8 @@
             "Hispanic",
             "Black",
             "Asian/Pacific Islander",
-            "Multi-Racial",
-            "Native American"
+            "Native American",
+            "Multi-Racial"
           ],
           "values": [
             450,
@@ -25077,8 +25077,8 @@
             "White",
             "Black",
             "Asian/Pacific Islander",
-            "Eastern Indian",
             "Hispanic",
+            "Eastern Indian",
             "Native American"
           ],
           "values": [
@@ -30795,8 +30795,8 @@
             "White",
             "Black",
             "Hispanic",
-            "Native American",
             "Asian/Pacific Islander",
+            "Native American",
             "Multi-Racial",
             "Eastern Indian"
           ],
