@@ -5223,8 +5223,8 @@
             "White",
             "Black",
             "Asian/Pacific Islander",
-            "Multi-Racial",
             "Hispanic",
+            "Multi-Racial",
             "Native American",
             "Eastern Indian"
           ],
@@ -6361,8 +6361,8 @@
             "White",
             "Hispanic",
             "Black",
-            "Eastern Indian",
             "Multi-Racial",
+            "Eastern Indian",
             "Asian/Pacific Islander",
             "Native American"
           ],
@@ -15735,8 +15735,8 @@
           "labels": [
             "White",
             "Black",
-            "Eastern Indian",
             "Native American",
+            "Eastern Indian",
             "Hispanic"
           ],
           "values": [
@@ -16940,8 +16940,8 @@
             "White",
             "Black",
             "Asian/Pacific Islander",
-            "Hispanic",
-            "Native American"
+            "Native American",
+            "Hispanic"
           ],
           "values": [
             164,
@@ -18064,8 +18064,8 @@
           "labels": [
             "White",
             "Black",
-            "Hispanic",
             "Asian/Pacific Islander",
+            "Hispanic",
             "Eastern Indian"
           ],
           "values": [
@@ -30795,8 +30795,8 @@
             "White",
             "Black",
             "Hispanic",
-            "Native American",
             "Asian/Pacific Islander",
+            "Native American",
             "Multi-Racial",
             "Eastern Indian"
           ],
