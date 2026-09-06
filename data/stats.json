@@ -6361,8 +6361,8 @@
             "White",
             "Hispanic",
             "Black",
-            "Multi-Racial",
             "Eastern Indian",
+            "Multi-Racial",
             "Asian/Pacific Islander",
             "Native American"
           ],
@@ -16940,8 +16940,8 @@
             "White",
             "Black",
             "Asian/Pacific Islander",
-            "Native American",
-            "Hispanic"
+            "Hispanic",
+            "Native American"
           ],
           "values": [
             164,
@@ -23685,8 +23685,8 @@
             "Hispanic",
             "Black",
             "Asian/Pacific Islander",
-            "Native American",
-            "Multi-Racial"
+            "Multi-Racial",
+            "Native American"
           ],
           "values": [
             450,
