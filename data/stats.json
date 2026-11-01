@@ -5225,8 +5225,8 @@
             "Asian/Pacific Islander",
             "Hispanic",
             "Multi-Racial",
-            "Eastern Indian",
-            "Native American"
+            "Native American",
+            "Eastern Indian"
           ],
           "values": [
             316,
@@ -6361,8 +6361,8 @@
             "White",
             "Hispanic",
             "Black",
-            "Eastern Indian",
             "Multi-Racial",
+            "Eastern Indian",
             "Asian/Pacific Islander",
             "Native American"
           ],
@@ -12416,8 +12416,8 @@
         "race": {
           "labels": [
             "White",
-            "Hispanic",
             "Asian/Pacific Islander",
+            "Hispanic",
             "Black",
             "Eastern Indian",
             "Multi-Racial"
@@ -15735,9 +15735,9 @@
           "labels": [
             "White",
             "Black",
-            "Hispanic",
+            "Native American",
             "Eastern Indian",
-            "Native American"
+            "Hispanic"
           ],
           "values": [
             366,
@@ -16940,8 +16940,8 @@
             "White",
             "Black",
             "Asian/Pacific Islander",
-            "Hispanic",
-            "Native American"
+            "Native American",
+            "Hispanic"
           ],
           "values": [
             164,
@@ -18064,8 +18064,8 @@
           "labels": [
             "White",
             "Black",
-            "Hispanic",
             "Asian/Pacific Islander",
+            "Hispanic",
             "Eastern Indian"
           ],
           "values": [
@@ -23685,8 +23685,8 @@
             "Hispanic",
             "Black",
             "Asian/Pacific Islander",
-            "Multi-Racial",
-            "Native American"
+            "Native American",
+            "Multi-Racial"
           ],
           "values": [
             450,
@@ -25077,8 +25077,8 @@
             "White",
             "Black",
             "Asian/Pacific Islander",
-            "Eastern Indian",
             "Hispanic",
+            "Eastern Indian",
             "Native American"
           ],
           "values": [
